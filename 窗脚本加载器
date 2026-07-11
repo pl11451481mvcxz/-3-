@@ -1,39 +1,39 @@
-本地StarterGui=游戏：GetService("StarterGui")
-StarterGui:SetCore("SendNotification"，{
-title="窗脚本"，
-文本="欢迎使用窗脚本"，
-持续时间=5，
-button1="确定"
+local StarterGui = game:GetService("StarterGui")
+StarterGui:SetCore("SendNotification", {
+    Title = "窗脚本",
+    Text = "欢迎使用窗脚本",
+    Duration = 5,
+    Button1 = "确定"
 })
 
 -- 检查执行器
-如果未识别执行者，则
-StarterGui:SetCore("SendNotification"，{
-标题="错误"，
-文本="不支持的注入器"，
-持续时间=5
+if not identifyexecutor then
+    StarterGui:SetCore("SendNotification", {
+        Title = "错误",
+        Text = "不支持的注入器",
+        Duration = 5
     })
-返回
-结束
+    return
+end
 
---WindUI加载（添加保护）
-本地WindUI=零
-本地成功，err=pcall(函数()
-WindUI=loadstring(游戏：HttpGet(
-"https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+-- WindUI加载（添加保护）
+local WindUI = nil
+local success, err = pcall(function()
+    WindUI = loadstring(game:HttpGet(
+        "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
     ))()
-结束)
+end)
 
-如果不是WindUI，则
-StarterGui:SetCore("SendNotification"，{
-标题="错误"，
-text="UI库加载失败："..toString(err)，
-持续时间=5
+if not WindUI then
+    StarterGui:SetCore("SendNotification", {
+        Title = "错误",
+        Text = "UI库加载失败: " .. tostring(err),
+        Duration = 5
     })
-返回
-结束
+    return
+end
 
-本地玩家=游戏：GetService(“玩家”)
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
@@ -310,63 +310,63 @@ GeneralTab:Toggle({Title = "自瞄", Value = false, Callback = function(s) if s 
 GeneralTab:Toggle({Title = "反挂机", Value = false, Callback = function(s) if s then enAFK() else disAFK() end end})
 GeneralTab:Button({Title = "重新加入", Callback = function() rejoin() end})
 GeneralTab:Button({Title = "离开游戏", Callback = function() leave() end})
-GeneralTab：按钮({Title="关闭脚本"，回调=函数()closeScript()end})
+GeneralTab:Button({Title = "关闭脚本", Callback = function() closeScript() end})
 
-本地FlingTab=窗口：Tab({Title="甩飞"，icon="zap"})
-本地flingDropdown=FlingTab：下拉列表({Title="选择玩家"，values=getPlayerList()，Value=""，Callback=function(v)end})
-FlingTab：按钮({Title="甩飞一次"，callback=函数()局部v=flingDropdown.Value；如果v和v~=""和v~="无其他玩家"然后抛出{\f25One(v)end end})
-FlingTab：按钮({Title="刷新列表"，回调=函数()flingDropdown:Refresh(getPlayerList())end})
+local FlingTab = Window:Tab({Title = "甩飞", Icon = "zap"})
+local flingDropdown = FlingTab:Dropdown({Title = "选择玩家", Values = getPlayerList(), Value = "", Callback = function(v) end})
+FlingTab:Button({Title = "甩飞一次", Callback = function() local v = flingDropdown.Value; if v and v ~= "" and v ~= "无其他玩家" then flingOne(v) end end})
+FlingTab:Button({Title = "刷新列表", Callback = function() flingDropdown:Refresh(getPlayerList()) end})
 
-local TrackingTab=窗口：Tab({Title="追踪类"，图标="十字准线"})
-本地trackDropdown=TrackingTab：下拉列表({Title="追踪玩家"，values=getPlayerList()，Value=""，Callback=函数(v)如果v~=""则startTrack(v)end end})
-TrackingTab：按钮({Title="停止追踪"，回调=函数()stoptrack()end})
-TrackingTab：按钮({Title="刷新列表"，回调=函数()trackDropdown:Refresh(getPlayerList())end})
-局部循环=false
-TrackingTab:Toggle({Title="转圈"，value=false，Callback=函数循环=s；如果s，则繁殖(函数()局部a=0；同时循环和player。Character和运动员。角色：FindFirstChild("HumanoidRootPart")do a=a+0.1；player.Character.HumanoidRootPart.CFrame=player.Character.HumanoidRootPart.CFrame*CFrame.Angles(0，0.1，0)+Vector3.new(math.Cos(a)*0.5，0，math.sin(a)*0.5)；等待()结束end)结束end})
+local TrackingTab = Window:Tab({Title = "追踪类", Icon = "crosshair"})
+local trackDropdown = TrackingTab:Dropdown({Title = "追踪玩家", Values = getPlayerList(), Value = "", Callback = function(v) if v ~= "" then startTrack(v) end end})
+TrackingTab:Button({Title = "停止追踪", Callback = function() stopTrack() end})
+TrackingTab:Button({Title = "刷新列表", Callback = function() trackDropdown:Refresh(getPlayerList()) end})
+local circling = false
+TrackingTab:Toggle({Title = "转圈", Value = false, Callback = function(s) circling = s; if s then spawn(function() local a = 0; while circling and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do a = a + 0.1; player.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame * CFrame.Angles(0,0.1,0) + Vector3.new(math.cos(a)*0.5,0,math.sin(a)*0.5); wait() end end) end end})
 
-local InjectorTab=窗口：Tab({Title="注入器"，图标="下载"})
-InjectorTab：按钮({Title="Alz宙斯注入器3.0"，Callback=function()loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))()end})
+local InjectorTab = Window:Tab({Title = "注入器", Icon = "download"})
+InjectorTab:Button({Title = "阿尔宙斯注入器3.0", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))() end})
 
-local OtherTab=Window:Tab({Title="其他脚本"，Icon="code"})
-OtherTab:Button({Title="皮脚本"，callback=函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))()end})
-OtherTab：按钮({Title="tsb脚本"，callback=函数()local K="YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"；pcall(函数()setclipboard(k)end)；loadstring(game:HttpGet("https://raw.githubusercontent.com/DiosDi/VexonHub/refs/heads/main/VexonHub"))()结束})
-OtherTab:Button({Title="叶脚本"，callback=函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))()结束})
-OtherTab：按钮({Title="动作脚本"，回调=函数()负载串(游戏：HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))()end})
-OtherTab:Button({Title="ROB"，Callback=function()loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))()end})
-OtherTab:Button({Title="XK"，Callback=function()loadstring(游戏：HttpGet('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))() end})
-OtherTab:Button({Title="祖国人"，回调=函数()pcall(函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))()结束)结束})
-OtherTab：按钮({Title="天下布武"，回调=函数()pcall(函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end)end})
-OtherTab：按钮({Title="最强战场远程打人"，回调=函数()loadstring(游戏：HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SIONELTNAMATLASIA.lua"))()end})
-OtherTab：按钮({Title="最强战场垃圾桶脚本"，callback=函数()loadstring(游戏：HttpGet("https://raw.githubusercontent.com/yes1nt/yes/refs/heads/main/Trashcan%20Man"，true))()end})
-OtherTab：按钮({Title="黑白脚本"，回调=函数()loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8'))() end})
-OtherTab:Button({Title="BS脚本"，Callback=function()local BS="\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97\117"loadstring(game:HttpGet(BS))()end})
+local OtherTab = Window:Tab({Title = "其他脚本", Icon = "code"})
+OtherTab:Button({Title = "皮脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))() end})
+OtherTab:Button({Title = "tsb脚本", Callback = function() local k = "YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"; pcall(function() setclipboard(k) end); loadstring(game:HttpGet("https://raw.githubusercontent.com/DiosDi/VexonHub/refs/heads/main/VexonHub"))() end})
+OtherTab:Button({Title = "叶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))() end})
+OtherTab:Button({Title = "动作脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))() end})
+OtherTab:Button({Title = "ROB", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))() end})
+OtherTab:Button({Title = "XK", Callback = function() loadstring(game:HttpGet(('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))() end})
+OtherTab:Button({Title = "祖国人", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))() end) end})
+OtherTab:Button({Title = "天下布武", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end) end})
+OtherTab:Button({Title = "最强战场远程打人", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SIONELTNAMATLASIA.lua"))() end})
+OtherTab:Button({Title = "最强战场垃圾桶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/yes1nt/yes/refs/heads/main/Trashcan%20Man",true))() end})
+OtherTab:Button({Title = "黑白脚本", Callback = function() loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8'))() end})
+OtherTab:Button({Title = "BS脚本", Callback = function() local BS = "\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97\117" loadstring(game:HttpGet(BS))() end})
 
-本地服务器Tab=窗口：Tab({Title="脚本服务器"，图标="服务器"})
-ServerTab：按钮({Title="内脏与黑火药"，回调=函数()loadstring(游戏：HttpGet("https://raw.githubusercontent.com/wzhxll/2/refs/heads/main/%E9%98%89%E5%89%B2%E7%89%88.lua"))()end})
-ServerTab：按钮({Title="TSB脚本"，callback=函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))()结束})
-ServerTab：按钮({Title="监狱人生脚本"，回调=函数()loadstring(游戏：HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))()end})
-ServerTab：按钮({Title="破坏者谜团2脚本"，callback=函数()loadstring(游戏：HttpGet(("https://raw.githubusercontent.com/Ethanoj1/EclipseMM2/master/Script")，true))()end})
-ServerTab：按钮({Title="99夜脚本"，callback=函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/atnew2025/Chinese-scripts/refs/heads/main/voidware-cn.txt"))()结束})
+local ServerTab = Window:Tab({Title = "脚本服务器", Icon = "server"})
+ServerTab:Button({Title = "内脏与黑火药", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/2/refs/heads/main/%E9%98%89%E5%89%B2%E7%89%88.lua"))() end})
+ServerTab:Button({Title = "TSB脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))() end})
+ServerTab:Button({Title = "监狱人生脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))() end})
+ServerTab:Button({Title = "破坏者谜团2脚本", Callback = function() loadstring(game:HttpGet(("https://raw.githubusercontent.com/Ethanoj1/EclipseMM2/master/Script"),true))() end})
+ServerTab:Button({Title = "99夜脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/atnew2025/Chinese-scripts/refs/heads/main/voidware-cn.txt"))() end})
 ServerTab:Button({Title = "doors", Callback = function() loadstring(game:HttpGet("\104\116\116\112\115\58\47\47\112\97\115\116\101\98\105\110\46\99\111\109\47\114\97\119\47\54\53\84\119\84\56\106\97"))() end})
-ServerTab：按钮({Title="自然灾害"，回调=函数()loadstring(游戏：HttpGet("https://pastebin.com/raw/5fKvum70"))()end})
-ServerTab：按钮({Title="LC"，Callback=function()loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))()end})
-ServerTab：按钮({Title="墨水游戏"，回调=函数()loadstring(游戏：HttpGet("https://pastebin.com/raw/sR98CDWm"))()end})
-ServerTab：按钮({Title="俄亥俄州"，回调=函数()loadstring(游戏：HttpGet("https://raw.githubusercontent.com/XingFork/Scripts/refs/heads/main/Ohio"))()end})
-ServerTab:Button({Title="被遗弃"，callback=函数()loadstring(game:HttpGet("https://raw.githubusercontent.com/FengYu-X/Max/refs/heads/X/fsk.lua"))()end})
+ServerTab:Button({Title = "自然灾害", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/5fKvum70"))() end})
+ServerTab:Button({Title = "LC", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))() end})
+ServerTab:Button({Title = "墨水游戏", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/sR98CDWm"))() end})
+ServerTab:Button({Title = "俄亥俄州", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XingFork/Scripts/refs/heads/main/Ohio"))() end})
+ServerTab:Button({Title = "被遗弃", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/FengYu-X/Max/refs/heads/X/fsk.lua"))() end})
 
-本地fetAb=窗口：选项卡({Title="FE脚本"，icon="flame"})
+local FETab = Window:Tab({Title = "FE脚本", Icon = "flame"})
 FETab:Button({Title = "coolgui", Callback = function() loadstring(game:GetObjects("rbxassetid://8127297852")[1].Source)() end})
 FETab:Button({Title = "1x1x1x1", Callback = function() loadstring(game:HttpGet(('https://pastebin.com/raw/JipYNCht'),true))() end})
-fetAb:Button({Title="变玩家(R6)"，Callback=function()loadstring(game:HttpGet("https://pastebin.com/raw/XR4sGcgJ"))()end})
-fetAb：按钮({Title="动画中心"，callback=函数()loadstring(游戏：HttpGet("https://raw.githubusercontent.com/GamingScripter/Animation-Hub/main/Animation%20Gui"，true))()end})
+FETab:Button({Title = "变玩家（R6）", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/XR4sGcgJ"))() end})
+FETab:Button({Title = "动画中心", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/GamingScripter/Animation-Hub/main/Animation%20Gui",true))() end})
 
 local MusicTab = Window:Tab({Title = "音乐", Icon = "music"})
-本地音乐输入=音乐选项卡：输入({Title="音乐代码"，value=""，占位符="输入音乐ID”，回调=函数(t)结束})
+local musicInput = MusicTab:Input({Title = "音乐代码", Value = "", Placeholder = "输入音乐ID", Callback = function(t) end})
 
-"bot"})
+local AIServerTab = Window:Tab({Title = "我做的服务器脚本（但ai）", Icon ="bot"})
 AIServerTab:Button({Title = "击打战斗脚本", Callback = function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-6/refs/heads/main/%E5%87%BB%E6%89%93%E6%88%98%E6%96%97%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
 end})
-AIServerTab:Button({title="最强战场剧本"，callback=函数()
+AIServerTab:Button({Title = "最强战场脚本", Callback = function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-1-/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
-end})本地AIServerTab=窗口：选项卡({Title="我做的服务器脚本(但ai)"，Icon=
+end})
