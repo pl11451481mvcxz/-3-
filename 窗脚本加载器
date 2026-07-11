@@ -1,39 +1,39 @@
-local StarterGui = game:GetService("StarterGui")
-StarterGui:SetCore("SendNotification", {
-    Title = "窗脚本",
-    Text = "欢迎使用窗脚本",
-    Duration = 5,
-    Button1 = "确定"
+本地StarterGui=游戏：GetService("StarterGui")
+StarterGui:SetCore("SendNotification"，{
+title="窗脚本"，
+文本="欢迎使用窗脚本"，
+持续时间=5，
+button1="确定"
 })
 
 -- 检查执行器
-if not identifyexecutor then
-    StarterGui:SetCore("SendNotification", {
-        Title = "错误",
-        Text = "不支持的注入器",
-        Duration = 5
+如果未识别执行者，则
+StarterGui:SetCore("SendNotification"，{
+标题="错误"，
+文本="不支持的注入器"，
+持续时间=5
     })
-    return
-end
+返回
+结束
 
--- WindUI加载（添加保护）
-local WindUI = nil
-local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+--WindUI加载（添加保护）
+本地WindUI=零
+本地成功，err=pcall(函数()
+WindUI=loadstring(游戏：HttpGet(
+"https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
     ))()
-end)
+结束)
 
-if not WindUI then
-    StarterGui:SetCore("SendNotification", {
-        Title = "错误",
-        Text = "UI库加载失败: " .. tostring(err),
-        Duration = 5
+如果不是WindUI，则
+StarterGui:SetCore("SendNotification"，{
+标题="错误"，
+text="UI库加载失败："..toString(err)，
+持续时间=5
     })
-    return
-end
+返回
+结束
 
-local Players = game:GetService("Players")
+本地玩家=游戏：GetService(“玩家”)
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
