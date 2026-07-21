@@ -1,708 +1,939 @@
-local StarterGui = game:GetService("StarterGui")
-StarterGui:SetCore("SendNotification", {
-    Title = "窗脚本",
-    Text = "欢迎使用窗脚本",
-    Duration = 5,
-    Button1 = "确定"
-})
 
--- 检查执行器
-if not identifyexecutor then
-    StarterGui:SetCore("SendNotification", {
-        Title = "错误",
-        Text = "不支持的注入器",
-        Duration = 5
-    })
-    return
-end
-
--- WindUI加载（添加保护）
-local WindUI = nil
+-- 加载 WindUI 库（带错误处理）
+local WindUI
 local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
-    ))()
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 end)
 
+if not success or not WindUI then
+    warn("WindUI加载失败: " .. tostring(err))
+    warn("尝试使用备用加载方式...")
+    
+    -- 备用方案：直接从原始代码加载
+    success, err = pcall(function()
+        WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/main.lua"))()
+    end)
+end
+
+-- 如果还是加载失败，显示错误提示
 if not WindUI then
-    StarterGui:SetCore("SendNotification", {
-        Title = "错误",
-        Text = "UI库加载失败: " .. tostring(err),
-        Duration = 5
-    })
+    local player = game.Players.LocalPlayer
+    local gui = Instance.new("ScreenGui")
+    gui.Parent = player:WaitForChild("PlayerGui")
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 100)
+    frame.Position = UDim2.new(0.5, -150, 0.5, -50)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.Parent = gui
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Text = "窗脚本加载失败\n请检查网络连接或稍后再试"
+    label.TextSize = 16
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.BackgroundTransparency = 1
+    label.Parent = frame
+    
     return
 end
 
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
+-- 渐变文字函数
+function gradient(text, startColor, endColor)
+    local result = ""
+    local length = #text
 
-local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local rootPart = character:WaitForChild("HumanoidRootPart")
-local humanoid = character:WaitForChild("Humanoid")
-local camera = workspace.CurrentCamera
+    for i = 1, length do
+        local t = (i - 1) / math.max(length - 1, 1)
+        local r = math.floor((startColor.R + (endColor.R - startColor.R) * t) * 255)
+        local g = math.floor((startColor.G + (endColor.G - startColor.G) * t) * 255)
+        local b = math.floor((startColor.B + (endColor.B - startColor.B) * t) * 255)
 
-player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    rootPart = character:WaitForChild("HumanoidRootPart")
-    humanoid = character:WaitForChild("Humanoid")
-end)
+        local char = text:sub(i, i)
+        result = result .. "<font color=\"rgb(" .. r ..", " .. g .. ", " .. b .. ")\">" .. char .. "</font>"
+    end
 
--- 状态
-local noclip = false
-local infiniteJump = false
-local god = false
-local antiAFK = false
-local frozen = false
-local invisible = false
-local esp = false
-local espObj = {}
-local aimbot = false
-local aimRange = 500
-local spinning = false
-local spinSpeed = 10
-local spinConnection = nil
-local nightVision = false
-local playerJoinNotify = false
-local gravityValue = workspace.Gravity
-
--- 追踪
-local trackTarget = nil
-local trackConnection = nil
-
--- 飞行
-local flyGui = nil
-local nowe = false
-local tpwalking = false
-
-function getPlayerList()
-    local t = {}
-    for _,p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(t, p.Name) end end
-    return #t > 0 and t or {"无其他玩家"}
+    return result
 end
 
-function openFlyGUI()
-    if flyGui then flyGui:Destroy() end
-    local function restoreCharacter()
-        nowe = false; tpwalking = false
-        local sp = game.Players.LocalPlayer
-        if sp.Character then
-            for _, v in ipairs(sp.Character:GetDescendants()) do
-                if v:IsA("BodyGyro") or v:IsA("BodyVelocity") or v:IsA("BodyPosition") then v:Destroy() end
-            end
-            local hum = sp.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.PlatformStand = false
-                for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do hum:SetStateEnabled(s, true) end
-                hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-            end
-            if sp.Character:FindFirstChild("Animate") then sp.Character.Animate.Disabled = false end
-        end
-    end
-    local main = Instance.new("ScreenGui")
-    local Frame = Instance.new("Frame")
-    local up = Instance.new("TextButton")
-    local down = Instance.new("TextButton")
-    local onof = Instance.new("TextButton")
-    local TextLabel = Instance.new("TextLabel")
-    local plus = Instance.new("TextButton")
-    local speed = Instance.new("TextLabel")
-    local mine = Instance.new("TextButton")
-    local closebutton = Instance.new("TextButton")
-    local mini = Instance.new("TextButton")
-    local mini2 = Instance.new("TextButton")
-    main.Name = "main"
-    local success = pcall(function()
-        main.Parent = game:GetService("CoreGui")
-    end)
-    if not success then
-        main.Parent = player:WaitForChild("PlayerGui")
-    end
-    main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; main.ResetOnSpawn = false
-    Frame.Parent = main; Frame.BackgroundColor3 = Color3.fromRGB(255,255,255); Frame.BorderColor3 = Color3.fromRGB(103,221,213)
-    Frame.Position = UDim2.new(0.1,0,0.38,0); Frame.Size = UDim2.new(0,190,0,57)
-    up.Name = "up"; up.Parent = Frame; up.BackgroundColor3 = Color3.fromRGB(255,255,255); up.Size = UDim2.new(0,44,0,28); up.Font = Enum.Font.SourceSans; up.Text = "上升"; up.TextColor3 = Color3.fromRGB(0,0,0); up.TextSize = 14
-    down.Name = "down"; down.Parent = Frame; down.BackgroundColor3 = Color3.fromRGB(255,255,255); down.Position = UDim2.new(0,0,0.49,0); down.Size = UDim2.new(0,44,0,28); down.Font = Enum.Font.SourceSans; down.Text = "下降"; down.TextColor3 = Color3.fromRGB(0,0,0); down.TextSize = 14
-    onof.Name = "onof"; onof.Parent = Frame; onof.BackgroundColor3 = Color3.fromRGB(255,255,255); onof.Position = UDim2.new(0.7,0,0.49,0); onof.Size = UDim2.new(0,56,0,28); onof.Font = Enum.Font.SourceSans; onof.Text = "窗飞行"; onof.TextColor3 = Color3.fromRGB(0,0,0); onof.TextSize = 14
-    TextLabel.Parent = Frame; TextLabel.BackgroundColor3 = Color3.fromRGB(255,255,255); TextLabel.Position = UDim2.new(0.47,0,0,0); TextLabel.Size = UDim2.new(0,100,0,28); TextLabel.Font = Enum.Font.SourceSans; TextLabel.Text = "窗飞行"; TextLabel.TextColor3 = Color3.fromRGB(0,0,0); TextLabel.TextScaled = true; TextLabel.TextSize = 14; TextLabel.TextWrapped = true
-    plus.Name = "plus"; plus.Parent = Frame; plus.BackgroundColor3 = Color3.fromRGB(255,255,255); plus.Position = UDim2.new(0.23,0,0,0); plus.Size = UDim2.new(0,45,0,28); plus.Font = Enum.Font.SourceSans; plus.Text = "+"; plus.TextColor3 = Color3.fromRGB(0,0,0); plus.TextScaled = true; plus.TextSize = 14; plus.TextWrapped = true
-    speed.Name = "speed"; speed.Parent = Frame; speed.BackgroundColor3 = Color3.fromRGB(255,255,255); speed.Position = UDim2.new(0.47,0,0.49,0); speed.Size = UDim2.new(0,44,0,28); speed.Font = Enum.Font.SourceSans; speed.Text = "1"; speed.TextColor3 = Color3.fromRGB(0,0,0); speed.TextScaled = true; speed.TextSize = 14; speed.TextWrapped = true
-    mine.Name = "mine"; mine.Parent = Frame; mine.BackgroundColor3 = Color3.fromRGB(255,255,255); mine.Position = UDim2.new(0.23,0,0.49,0); mine.Size = UDim2.new(0,45,0,29); mine.Font = Enum.Font.SourceSans; mine.Text = "-"; mine.TextColor3 = Color3.fromRGB(0,0,0); mine.TextScaled = true; mine.TextSize = 14; mine.TextWrapped = true
-    closebutton.Name = "Close"; closebutton.Parent = Frame; closebutton.BackgroundColor3 = Color3.fromRGB(255,255,255); closebutton.Font = "SourceSans"; closebutton.Size = UDim2.new(0,45,0,28); closebutton.Text = "x"; closebutton.TextSize = 30; closebutton.Position = UDim2.new(0,0,-1,27)
-    mini.Name = "minimize"; mini.Parent = Frame; mini.BackgroundColor3 = Color3.fromRGB(255,255,255); mini.Font = "SourceSans"; mini.Size = UDim2.new(0,45,0,28); mini.Text = "-"; mini.TextSize = 40; mini.Position = UDim2.new(0,44,-1,27)
-    mini2.Name = "minimize2"; mini2.Parent = Frame; mini2.BackgroundColor3 = Color3.fromRGB(255,255,255); mini2.Font = "SourceSans"; mini2.Size = UDim2.new(0,45,0,28); mini2.Text = "+"; mini2.TextSize = 40; mini2.Position = UDim2.new(0,44,-1,57); mini2.Visible = false
-    local speeds = 1; Frame.Active = true; Frame.Draggable = true
-    onof.MouseButton1Down:Connect(function()
-        if nowe then restoreCharacter(); return end
-        if not player.Character then return end
-        nowe = true; tpwalking = true
-        for i = 1, speeds do spawn(function() local hb = RunService.Heartbeat; while tpwalking and hb:Wait() and player.Character do local chr = player.Character; local hum = chr and chr:FindFirstChildWhichIsA("Humanoid"); if hum and hum.MoveDirection.Magnitude > 0 then chr:TranslateBy(hum.MoveDirection) end end end) end
-        if player.Character then
-            if player.Character:FindFirstChild("Animate") then player.Character.Animate.Disabled = true end
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            if hum then for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do hum:SetStateEnabled(s, false) end; hum:ChangeState(Enum.HumanoidStateType.Swimming) end
-        end
-        if player.Character then
-            local hum = player.Character:FindFirstChildOfClass("Humanoid")
-            local torso = hum and hum.RigType == Enum.HumanoidRigType.R6 and player.Character:FindFirstChild("Torso") or (hum and player.Character:FindFirstChild("UpperTorso"))
-            if hum and torso then
-                local ctrl = {f=0,b=0,l=0,r=0}; local lastctrl = {f=0,b=0,l=0,r=0}; local maxspeed = 50; local spd = 0
-                local bg = Instance.new("BodyGyro", torso); bg.P = 9e4; bg.maxTorque = Vector3.new(9e9,9e9,9e9); bg.cframe = torso.CFrame
-                local bv = Instance.new("BodyVelocity", torso); bv.velocity = Vector3.new(0,0.1,0); bv.maxForce = Vector3.new(9e9,9e9,9e9)
-                if nowe then hum.PlatformStand = true end
-                while nowe and player.Character and hum and hum.Health > 0 do wait()
-                    if ctrl.l+ctrl.r~=0 or ctrl.f+ctrl.b~=0 then spd=spd+0.5+(spd/maxspeed); if spd>maxspeed then spd=maxspeed end
-                    elseif spd~=0 then spd=spd-1; if spd<0 then spd=0 end end
-                    if (ctrl.l+ctrl.r)~=0 or (ctrl.f+ctrl.b)~=0 then bv.velocity = ((camera.CFrame.LookVector*(ctrl.f+ctrl.b))+((camera.CFrame*CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*0.2,0).p)-camera.CFrame.p))*spd; lastctrl={f=ctrl.f,b=ctrl.b,l=ctrl.l,r=ctrl.r}
-                    elseif spd~=0 then bv.velocity = ((camera.CFrame.LookVector*(lastctrl.f+lastctrl.b))+((camera.CFrame*CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*0.2,0).p)-camera.CFrame.p))*spd
-                    else bv.velocity=Vector3.new(0,0,0) end
-                    bg.cframe = camera.CFrame*CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*spd/maxspeed),0,0)
+-- 用于记录用户是否点击了"继续"按钮
+local Confirmed = false
+
+-- 创建欢迎弹窗
+WindUI:Popup({
+    Title = "欢迎使用窗脚本中心",
+    Icon = "info",
+    Content = "窗脚本第二个版本",
+    Buttons = {
+        {
+            Title = "取消",
+            Callback = function() end,
+            Variant = "Secondary",
+        },
+        {
+            Title = "使用窗脚本",
+            Icon = "arrow-left",
+            Callback = function() 
+                -- 执行旧版窗脚本代码
+                local oldSuccess, oldErr = pcall(function()
+                    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-3-/refs/heads/main/%E7%AA%97%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
+                end)
+                if not oldSuccess then
+                    warn("旧版脚本加载失败: " .. tostring(oldErr))
                 end
-                bg:Destroy(); bv:Destroy()
-            end
-        end
-    end)
-    local tis; up.MouseButton1Down:Connect(function() tis = RunService.Heartbeat:Connect(function() local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart"); if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(0,1,0) end end) end)
-    up.MouseLeave:Connect(function() if tis then tis:Disconnect(); tis=nil end end); up.MouseButton1Up:Connect(function() if tis then tis:Disconnect(); tis=nil end end)
-    local dis; down.MouseButton1Down:Connect(function() dis = RunService.Heartbeat:Connect(function() local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart"); if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(0,-1,0) end end) end)
-    down.MouseLeave:Connect(function() if dis then dis:Disconnect(); dis=nil end end); down.MouseButton1Up:Connect(function() if dis then dis:Disconnect(); dis=nil end end)
-    plus.MouseButton1Down:Connect(function() speeds=speeds+1; speed.Text=speeds; if nowe then tpwalking=false; for i=1,speeds do spawn(function() local hb=RunService.Heartbeat; tpwalking=true; while tpwalking and hb:Wait() and player.Character do local chr=player.Character; local hum=chr and chr:FindFirstChildWhichIsA("Humanoid"); if hum and hum.MoveDirection.Magnitude>0 then chr:TranslateBy(hum.MoveDirection) end end end) end end end)
-    mine.MouseButton1Down:Connect(function() if speeds==1 then speed.Text='不能小于1'; wait(1); speed.Text=speeds else speeds=speeds-1; speed.Text=speeds; if nowe then tpwalking=false; for i=1,speeds do spawn(function() local hb=RunService.Heartbeat; tpwalking=true; while tpwalking and hb:Wait() and player.Character do local chr=player.Character; local hum=chr and chr:FindFirstChildWhichIsA("Humanoid"); if hum and hum.MoveDirection.Magnitude>0 then chr:TranslateBy(hum.MoveDirection) end end end) end end end end)
-    closebutton.MouseButton1Click:Connect(function() restoreCharacter(); main:Destroy() end)
-    mini.MouseButton1Click:Connect(function() up.Visible=false;down.Visible=false;onof.Visible=false;plus.Visible=false;speed.Visible=false;mine.Visible=false;mini.Visible=false;mini2.Visible=true; Frame.BackgroundTransparency=1; closebutton.Position=UDim2.new(0,0,-1,57) end)
-    mini2.MouseButton1Click:Connect(function() up.Visible=true;down.Visible=true;onof.Visible=true;plus.Visible=true;speed.Visible=true;mine.Visible=true;mini.Visible=true;mini2.Visible=false; Frame.BackgroundTransparency=0; closebutton.Position=UDim2.new(0,0,-1,27) end)
-    flyGui = main
-end
-
--- 功能函数
-function enNoclip() noclip=true;spawn(function() while noclip do RunService.Stepped:Wait();if character then for _,v in ipairs(character:GetDescendants())do if v:IsA("BasePart")then v.CanCollide=false end end end end end)end
-function disNoclip() noclip=false end
-function enGod() god=true;spawn(function() while god do wait();if humanoid and humanoid.Health>0 then humanoid.Health=humanoid.MaxHealth end end end)end
-function disGod() god=false end
-function enIJ() infiniteJump=true;UserInputService.JumpRequest:Connect(function() if infiniteJump and humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping)end end)end
-function disIJ() infiniteJump=false end
-function enFrozen() frozen=true;if rootPart then rootPart.Anchored=true end end
-function disFrozen() frozen=false;if rootPart then rootPart.Anchored=false end end
-function setWS(s) if humanoid then humanoid.WalkSpeed=s end end
-function enESP() esp=true;for _,p in ipairs(Players:GetPlayers())do if p~=player and p.Character then local h=Instance.new("Highlight");h.FillColor=Color3.fromRGB(255,0,0);h.FillTransparency=0.5;h.Parent=p.Character;espObj[p]=h end end end
-function disESP() esp=false;for _,v in pairs(espObj)do if v then v:Destroy()end end;espObj={}end
-function enAFK() antiAFK=true;spawn(function() while antiAFK do VirtualInputManager:SendMouseMoveEvent(1,0,true,game,false);wait(0.1);VirtualInputManager:SendMouseMoveEvent(-1,0,true,game,false)end end)end
-function disAFK() antiAFK=false end
-function enInvisible() invisible=true;if character then for _,v in ipairs(character:GetDescendants())do if v:IsA("BasePart")then v.Transparency=1 end end end end
-function disInvisible() invisible=false;if character then for _,v in ipairs(character:GetDescendants())do if v:IsA("BasePart")then v.Transparency=0 end end end end
-function suicide() if character and humanoid then humanoid.Health=0 end end
-function killAll() for _,p in ipairs(Players:GetPlayers())do if p~=player and p.Character then local h=p.Character:FindFirstChild("Humanoid");if h and h.Health>0 then h:TakeDamage(h.MaxHealth)end end end end
-function rejoin() TeleportService:Teleport(game.PlaceId,player)end
-function leave() game:Shutdown()end
-function closeScript() if flyGui then nowe=false;tpwalking=false;flyGui:Destroy()end;disNoclip();disIJ();disGod();disFrozen();disESP();disAFK();disSpin();disNV();disPJN();stopTrack();if Window then Window:Destroy()end end
-function enAimbot() aimbot=true;spawn(function() while aimbot do wait();local cl,cd=nil,aimRange;for _,p in ipairs(Players:GetPlayers())do if p~=player and p.Character then local hd=p.Character:FindFirstChild("Head");local hu=p.Character:FindFirstChild("Humanoid");if hd and hu and hu.Health>0 then local sp,on=camera:WorldToViewportPoint(hd.Position);if on then local mp=UserInputService:GetMouseLocation();local d=(Vector2.new(sp.X,sp.Y)-mp).Magnitude;if d<cd then cd=d;cl=hd end end end end end;if cl then camera.CFrame=CFrame.new(camera.CFrame.Position,cl.Position)end end end)end
-function disAimbot() aimbot=false end
-function enSpin() spinning=true;spinConnection=RunService.Heartbeat:Connect(function() if rootPart then rootPart.CFrame=rootPart.CFrame*CFrame.Angles(0,math.rad(spinSpeed),0) end end)end
-function disSpin() spinning=false;if spinConnection then spinConnection:Disconnect();spinConnection=nil end end
-function setSpinSpeed(v) spinSpeed=v;if spinning then disSpin();enSpin() end end
-function enNV() nightVision=true;game:GetService("Lighting").Brightness=2;game:GetService("Lighting").ClockTime=14 end
-function disNV() nightVision=false;game:GetService("Lighting").Brightness=1 end
-function enPJN() playerJoinNotify=true;Players.PlayerAdded:Connect(function(p) if playerJoinNotify then StarterGui:SetCore("SendNotification",{Title="窗脚本",Text=p.Name.." 加入了服务器",Duration=3,Button1="确定"})end end)end
-function disPJN() playerJoinNotify=false end
-function setGravity(v) workspace.Gravity=v;gravityValue=v end
-
--- 偷取玩家物品道具
-function stealItems()
-    for i,v in pairs(game.Players:GetChildren()) do
-        wait()
-        for i,b in pairs(v.Backpack:GetChildren()) do
-            b.Parent = game.Players.LocalPlayer.Backpack
-        end
-    end
-end
-
--- 追踪
-function startTrack(name)
-    stopTrack()
-    for _,p in ipairs(Players:GetPlayers()) do if p.Name==name and p~=player and p.Character then trackTarget=p;break end end
-    if not trackTarget then return end
-    trackConnection=RunService.Heartbeat:Connect(function()
-        if not trackTarget or not trackTarget.Character then stopTrack();return end
-        local tr=trackTarget.Character:FindFirstChild("HumanoidRootPart")
-        local mr=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if tr and mr then mr.CFrame=tr.CFrame*CFrame.new(0,0,5) end
-    end)
-end
-function stopTrack() trackTarget=nil;if trackConnection then trackConnection:Disconnect();trackConnection=nil end end
-
--- 甩飞
-function flingOne(name)
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p.Name==name and p~=player and p.Character then
-            local tr=p.Character:FindFirstChild("HumanoidRootPart")
-            if tr then
-                local old=tr.CFrame
-                for i=1,5 do tr.CFrame=tr.CFrame+Vector3.new(0,5000,0);wait()end
-                tr.CFrame=old+Vector3.new(math.random(-200,200),math.random(500,2000),math.random(-200,200))
-            end
-            break
-        end
-    end
-end
-
-local musicData={}
-local musicFile="chuang_music.json"
-if writefile and readfile and isfile then
-    pcall(function() 
-        if isfile(musicFile) then
-            musicData=HttpService:JSONDecode(readfile(musicFile)) 
-        end
-    end)
-end
-
--- UI
-local Window = WindUI:CreateWindow({
-    Title = "窗脚本",
-    Icon = "zap",
-    Theme = "Indigo",
-    KeySystem = {Key = {"何意味"}, SaveKey = true}
+                Confirmed = true
+            end,
+            Variant = "Primary",
+        },
+        {
+            Title = "继续",
+            Icon = "arrow-right",
+            Callback = function() Confirmed = true end,
+            Variant = "Primary",
+        }
+    }
 })
 
-local NoticeTab = Window:Tab({Title = "公告", Icon = "megaphone"})
-NoticeTab:Button({Title = "脚本功能少", Callback = function() end})
-NoticeTab:Button({Title = "脚本是让AI写的", Callback = function() end})
-NoticeTab:Button({Title = "脚本完全免费", Callback = function() end})
-NoticeTab:Button({Title = "注入器: "..(identifyexecutor and identifyexecutor() or "未知"), Callback = function() end})
-NoticeTab:Button({Title = "用户名: "..player.Name, Callback = function() end})
+-- 等待用户点击"继续"后再继续执行
+repeat task.wait() until Confirmed
 
-local GeneralTab = Window:Tab({Title = "通用", Icon = "user"})
-GeneralTab:Button({Title = "窗飞行", Callback = function() openFlyGUI() end})
-GeneralTab:Toggle({Title = "穿墙", Value = false, Callback = function(s) if s then enNoclip() else disNoclip() end end})
-GeneralTab:Slider({Title = "走路速度", Value = {Min = 16, Max = 500, Default = 16}, Step = 5, Callback = function(v) setWS(v) end})
-GeneralTab:Toggle({Title = "无限跳", Value = false, Callback = function(s) if s then enIJ() else disIJ() end end})
-GeneralTab:Toggle({Title = "无法移动", Value = false, Callback = function(s) if s then enFrozen() else disFrozen() end end})
-GeneralTab:Toggle({Title = "无敌", Value = false, Callback = function(s) if s then enGod() else disGod() end end})
-GeneralTab:Toggle({Title = "隐身", Value = false, Callback = function(s) if s then enInvisible() else disInvisible() end end})
-GeneralTab:Toggle({Title = "ESP透视", Value = false, Callback = function(s) if s then enESP() else disESP() end end})
-GeneralTab:Button({Title = "击杀所有人", Callback = function() killAll() end})
-GeneralTab:Button({Title = "自杀", Callback = function() suicide() end})
-GeneralTab:Button({Title = "偷走玩家物品道具", Callback = function() stealItems() end})
-GeneralTab:Button({Title = "静默甩飞所有人", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/zqyDSUWX"))() end})
-GeneralTab:Button({Title = "雷欧飞踢", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-THE-REAL-dropkick-177199"))() end})
-GeneralTab:Button({Title = "铁拳甩飞", Callback = function() loadstring(game:HttpGet('https://raw.githubusercontent.com/0Ben1/fe/main/obf_rf6iQURzu1fqrytcnLBAvW34C9N55kS9g9G3CKz086rC47M6632sEd4ZZYB0AYgV.lua.txt'))() end})
-GeneralTab:Button({Title = "FPS（变流畅）", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/gclich/FPS-X-GUI/main/FPS_X.lua"))() end})
-GeneralTab:Button({Title = "获取管理员", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/sZpgTVas"))() end})
-GeneralTab:Button({Title = "死亡笔记", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/tt/main/%E6%AD%BB%E4%BA%A1%E7%AC%94%E8%AE%B0%20(1).txt"))() end})
-GeneralTab:Button({Title = "飞车", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/vb/main/%E9%A3%9E%E8%BD%A6.lua"))() end})
-GeneralTab:Button({Title = "假延迟脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Egor-simple-ui-91106"))() end})
-GeneralTab:Button({Title = "操人脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/BkeffrT5/raw"))() end})
-GeneralTab:Button({Title = "防甩飞（可开关）", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Linux6699/DaHubRevival/main/AntiFling.lua"))() end})
-GeneralTab:Button({Title = "r15无敌少侠飞行脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/396abc/Script/refs/heads/main/MobileFly.lua"))() end})
-GeneralTab:Button({Title = "r6无敌少侠飞行脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invincible-Mark-42041"))() end})
-GeneralTab:Button({Title = "r6鹿管脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/wa3v2Vgm/raw"))() end})
-GeneralTab:Button({Title = "r15鹿管脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))() end})
-GeneralTab:Toggle({Title = "旋转", Value = false, Callback = function(s) if s then enSpin() else disSpin() end end})
-GeneralTab:Slider({Title = "旋转速度", Value = {Min = 1, Max = 50, Default = 10}, Step = 1, Callback = function(v) setSpinSpeed(v) end})
-GeneralTab:Toggle({Title = "夜视", Value = false, Callback = function(s) if s then enNV() else disNV() end end})
-GeneralTab:Toggle({Title = "玩家进入通知", Value = false, Callback = function(s) if s then enPJN() else disPJN() end end})
-GeneralTab:Slider({Title = "重力设置", Value = {Min = 0, Max = 500, Default = gravityValue}, Step = 10, Callback = function(v) setGravity(v) end})
-GeneralTab:Slider({Title = "自瞄范围", Value = {Min = 100, Max = 1000, Default = 500}, Step = 50, Callback = function(v) aimRange = v end})
-GeneralTab:Toggle({Title = "自瞄", Value = false, Callback = function(s) if s then enAimbot() else disAimbot() end end})
-GeneralTab:Toggle({Title = "反挂机", Value = false, Callback = function(s) if s then enAFK() else disAFK() end end})
-GeneralTab:Button({Title = "重新加入", Callback = function() rejoin() end})
-GeneralTab:Button({Title = "离开游戏", Callback = function() leave() end})
-GeneralTab:Button({Title = "关闭脚本", Callback = function() closeScript() end})
+-- 创建主窗口
+local Window = WindUI:CreateWindow({
+    Title = "窗脚本中心",
+    Icon = "door-open",
+    Author = "AI",
+    Folder = "CloudHub",
+    Size = UDim2.fromOffset(580, 460),
+    Transparent = true,
+    Theme = "Dark",
+    User = {
+        Enabled = true,
+        Callback = function() print("点击了用户按钮") end,
+        Anonymous = false
+    },
+    SideBarWidth = 200,
+    Background = "rbxassetid://8732036547",
+    HasOutline = true,
+    KeySystem = {
+        Key = { "1234", "5678" },
+        Note = "示例密钥系统。\n\n密钥为 '1234' 或 '5678'",
+        URL = "https://github.com/Footagesus/WindUI",
+        SaveKey = true,
+    },
+})
 
-local FlingTab = Window:Tab({Title = "甩飞", Icon = "zap"})
-local flingDropdown = FlingTab:Dropdown({Title = "选择玩家", Values = getPlayerList(), Value = "", Callback = function(v) end})
-FlingTab:Button({Title = "甩飞一次", Callback = function() local v = flingDropdown.Value; if v and v ~= "" and v ~= "无其他玩家" then flingOne(v) end end})
-FlingTab:Button({Title = "刷新列表", Callback = function() flingDropdown:Refresh(getPlayerList()) end})
+-- 设置背景图片
+Window:SetBackgroundImage("rbxassetid://8732036547")
 
-local TrackingTab = Window:Tab({Title = "追踪类", Icon = "crosshair"})
-local trackDropdown = TrackingTab:Dropdown({Title = "追踪玩家", Values = getPlayerList(), Value = "", Callback = function(v) if v ~= "" then startTrack(v) end end})
-TrackingTab:Button({Title = "停止追踪", Callback = function() stopTrack() end})
-TrackingTab:Button({Title = "刷新列表", Callback = function() trackDropdown:Refresh(getPlayerList()) end})
-local circling = false
-TrackingTab:Toggle({Title = "转圈", Value = false, Callback = function(s) circling = s; if s then spawn(function() local a = 0; while circling and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do a = a + 0.1; player.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame * CFrame.Angles(0,0.1,0) + Vector3.new(math.cos(a)*0.5,0,math.sin(a)*0.5); wait() end end) end end})
-
-local InjectorTab = Window:Tab({Title = "注入器", Icon = "download"})
-InjectorTab:Button({Title = "阿尔宙斯注入器3.0", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))() end})
-
-local OtherTab = Window:Tab({Title = "其他脚本", Icon = "code"})
-OtherTab:Button({Title = "皮脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))() end})
-OtherTab:Button({Title = "tsb脚本", Callback = function() local k = "YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"; pcall(function() setclipboard(k) end); loadstring(game:HttpGet("https://raw.githubusercontent.com/DiosDi/VexonHub/refs/heads/main/VexonHub"))() end})
-OtherTab:Button({Title = "叶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))() end})
-OtherTab:Button({Title = "动作脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))() end})
-OtherTab:Button({Title = "ROB", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))() end})
-OtherTab:Button({Title = "XK", Callback = function() loadstring(game:HttpGet(('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))() end})
-OtherTab:Button({Title = "祖国人", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))() end) end})
-OtherTab:Button({Title = "天下布武", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end) end})
-OtherTab:Button({Title = "最强战场远程打人", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SIONELTNAMATLASIA.lua"))() end})
-OtherTab:Button({Title = "最强战场垃圾桶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/yes1nt/yes/refs/heads/main/Trashcan%20Man",true))() end})
-OtherTab:Button({Title = "黑白脚本", Callback = function() loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8'))() end})
-OtherTab:Button({Title = "BS脚本", Callback = function() local BS = "\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97\117" loadstring(game:HttpGet(BS))() end})
-
-local ServerTab = Window:Tab({Title = "脚本服务器", Icon = "server"})
-ServerTab:Button({Title = "内脏与黑火药", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/2/refs/heads/main/%E9%98%89%E5%89%B2%E7%89%88.lua"))() end})
-ServerTab:Button({Title = "TSB脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))() end})
-ServerTab:Button({Title = "监狱人生脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))() end})
-ServerTab:Button({Title = "破坏者谜团2脚本", Callback = function() loadstring(game:HttpGet(("https://raw.githubusercontent.com/Ethanoj1/EclipseMM2/master/Script"),true))() end})
-ServerTab:Button({Title = "99夜脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/atnew2025/Chinese-scripts/refs/heads/main/voidware-cn.txt"))() end})
-ServerTab:Button({Title = "doors", Callback = function() loadstring(game:HttpGet("\104\116\116\112\115\58\47\47\112\97\115\116\101\98\105\110\46\99\111\109\47\114\97\119\47\54\53\84\119\84\56\106\97"))() end})
-ServerTab:Button({Title = "自然灾害", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/5fKvum70"))() end})
-ServerTab:Button({Title = "LC", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))() end})
-ServerTab:Button({Title = "墨水游戏", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/sR98CDWm"))() end})
-ServerTab:Button({Title = "俄亥俄州", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XingFork/Scripts/refs/heads/main/Ohio"))() end})
-ServerTab:Button({Title = "被遗弃", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/FengYu-X/Max/refs/heads/X/fsk.lua"))() end})
-
-local FETab = Window:Tab({Title = "FE脚本", Icon = "flame"})
-FETab:Button({Title = "coolgui", Callback = function() loadstring(game:GetObjects("rbxassetid://8127297852")[1].Source)() end})
-FETab:Button({Title = "1x1x1x1", Callback = function() loadstring(game:HttpGet(('https://pastebin.com/raw/JipYNCht'),true))() end})
-FETab:Button({Title = "变玩家（R6）", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/XR4sGcgJ"))() end})
-FETab:Button({Title = "动画中心", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/GamingScripter/Animation-Hub/main/Animation%20Gui",true))() end})
-
-local MusicTab = Window:Tab({Title = "音乐", Icon = "music"})
-local musicInput = MusicTab:Input({Title = "音乐代码", Value = "", Placeholder = "输入音乐ID", Callback = function(t) end})
-
-local AIServerTab = Window:Tab({Title = "我做的服务器脚本（但ai）", Icon ="bot"})
-AIServerTab:Button({Title = "击打战斗脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-6/refs/heads/main/%E5%87%BB%E6%89%93%E6%88%98%E6%96%97%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
-end})
-AIServerTab:Button({Title = "最强战场脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-1-/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
-end})
-AIServerTab:Button({Title = "击退战斗", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-5/refs/heads/main/%E5%87%BB%E9%80%80%E6%88%98%E6%96%97.lua"))()
-end})
-AIServerTab:Button({Title = "HFH916汉化", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/HitboxExpander/refs/heads/main/Release"))()
-end})
-AIServerTab:Button({Title = "TSB加密脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/MIAN57/-/refs/heads/main/TSB%E5%8A%A0%E5%AF%86.lua"))()
-end})
-AIServerTab:Button({Title = "监狱人生脚本", Callback = function()
-    local function GetNil(Name, DebugId)
-        for _, Object in getnilinstances() do
-            if Object.Name == Name and Object:GetDebugId() == DebugId then
-                return Object
+-- ============ 让背景变透明的代码 ============
+spawn(function()
+    task.wait(1) -- 等待UI完全加载
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- 遍历所有ScreenGui查找背景图片
+    for _, screenGui in ipairs(playerGui:GetChildren()) do
+        if screenGui:IsA("ScreenGui") then
+            for _, descendant in ipairs(screenGui:GetDescendants()) do
+                -- 查找所有ImageLabel和ImageButton
+                if (descendant:IsA("ImageLabel") or descendant:IsA("ImageButton")) and descendant.Image == "rbxassetid://8732036547" then
+                    descendant.ImageTransparency = 0.5
+                    print("已设置背景透明度为: " .. tostring(descendant.ImageTransparency))
+                end
+                -- 同时也查找可能包含背景的Frame
+                if descendant:IsA("Frame") and descendant.Name:lower():find("background") then
+                    descendant.BackgroundTransparency = 0.5
+                end
             end
         end
     end
     
-    local PrisonWindow = WindUI:CreateWindow({
-        Title = "监狱人生脚本",
-        Icon = "lock",
-        Theme = "Dark",
-    })
+    -- 如果上面的方法没找到，尝试更广泛的搜索
+    for _, descendant in ipairs(playerGui:GetDescendants()) do
+        if (descendant:IsA("ImageLabel") or descendant:IsA("ImageButton")) and descendant.Image == "rbxassetid://8732036547" then
+            descendant.ImageTransparency = 0.5
+            print("二次查找：已设置背景透明度为: " .. tostring(descendant.ImageTransparency))
+        end
+    end
+end)
+
+-- ============ 修改UI字体颜色为灰色 ============
+spawn(function()
+    task.wait(0.5) -- 等待UI加载
+    local player = game.Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
     
-    local PrisonerTab = PrisonWindow:Tab({ Title = "囚犯功能", Icon = "user" })
-    local GuardTab = PrisonWindow:Tab({ Title = "警卫功能", Icon = "shield" })
-    local AimbotTab = PrisonWindow:Tab({ Title = "自瞄", Icon = "crosshair" })
-    local ThemeTab = PrisonWindow:Tab({ Title = "主题", Icon = "brush" })
+    -- 灰色颜色值
+    local grayColor = Color3.fromRGB(128, 128, 128)
     
-    local autoAttackEnabled = false
-    local autoKillEnabled = false
-    local autoGetKnifeEnabled = false
-    local autoEatFoodEnabled = false
-    local autoPickupGunEnabled = false
-    local autoEscapeEnabled = false
-    local invisibleEnabled = false
-    local teleportX = "0"
-    local teleportY = "0"
-    local teleportZ = "0"
-    local invisibleGroundY = nil
-    
-    local function autoAttackLoop()
-        while autoAttackEnabled do
-            task.wait(0.5)
-            pcall(function()
-                local player = game:GetService("Players").LocalPlayer
-                if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local myPosition = player.Character.HumanoidRootPart.Position
-                    local nearestPlayer = nil
-                    local nearestDistance = 20
-                    
-                    for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
-                        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            local distance = (myPosition - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
-                            if distance < nearestDistance then
-                                nearestDistance = distance
-                                nearestPlayer = otherPlayer
-                            end
-                        end
-                    end
-                    
-                    if nearestPlayer then
-                        local Event = game:GetService("ReplicatedStorage").meleeEvent
-                        Event:FireServer(nearestPlayer, 1, 1)
+    -- 遍历所有UI元素，修改文字颜色
+    for _, screenGui in ipairs(playerGui:GetChildren()) do
+        if screenGui:IsA("ScreenGui") then
+            for _, descendant in ipairs(screenGui:GetDescendants()) do
+                -- 修改所有TextLabel的文字颜色
+                if descendant:IsA("TextLabel") then
+                    if not descendant.Text:find("错误") and not descendant.Text:find("失败") then
+                        descendant.TextColor3 = grayColor
                     end
                 end
-            end)
-        end
-    end
-    
-    local function autoKillLoop()
-        while autoKillEnabled do
-            task.wait(0.1)
-            pcall(function()
-                local player = game:GetService("Players").LocalPlayer
-                if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local myPosition = player.Character.HumanoidRootPart.Position
-                    local nearestPlayer = nil
-                    local nearestDistance = 20
-                    
-                    for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
-                        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            local distance = (myPosition - otherPlayer.Character.HumanoidRootPart.Position).Magnitude
-                            if distance < nearestDistance then
-                                nearestDistance = distance
-                                nearestPlayer = otherPlayer
-                            end
-                        end
-                    end
-                    
-                    if nearestPlayer then
-                        local Event = game:GetService("ReplicatedStorage").meleeEvent
-                        for i = 1, 5 do
-                            Event:FireServer(nearestPlayer, 1, 1)
-                            task.wait(0.05)
-                        end
-                    end
+                -- 修改所有TextButton的文字颜色
+                if descendant:IsA("TextButton") then
+                    descendant.TextColor3 = grayColor
                 end
-            end)
-        end
-    end
-    
-    local function autoGetKnifeLoop()
-        while autoGetKnifeEnabled do
-            task.wait(0.3)
-            pcall(function()
-                local Event = game:GetService("ReplicatedStorage").Remotes.GiverPressed
-                Event:FireServer(workspace:GetChildren()[497])
-            end)
-        end
-    end
-    
-    local function autoEatFoodLoop()
-        while autoEatFoodEnabled do
-            task.wait(1)
-            pcall(function()
-                local Event = game:GetService("ReplicatedStorage").Remotes.EatFood
-                Event:FireServer()
-            end)
-        end
-    end
-    
-    local function autoPickupGunLoop()
-        local player = game:GetService("Players").LocalPlayer
-        local originalPosition = nil
-        
-        while autoPickupGunEnabled do
-            task.wait(1)
-            pcall(function()
-                local gun = GetNil("M9", "1_940690")
-                
-                if gun and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = player.Character.HumanoidRootPart
-                    
-                    if not originalPosition then
-                        originalPosition = hrp.Position
-                    end
-                    
-                    if gun:IsA("BasePart") then
-                        hrp.CFrame = gun.CFrame + Vector3.new(0, 3, 0)
-                    elseif gun.PrimaryPart then
-                        hrp.CFrame = gun.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
-                    end
-                    
-                    task.wait(0.5)
-                    
-                    local Event = game:GetService("ReplicatedStorage").Remotes.GiverPressed
-                    Event:FireServer(gun)
-                    
-                    task.wait(0.5)
-                    
-                    if originalPosition then
-                        hrp.CFrame = CFrame.new(originalPosition)
-                    end
+                -- 修改TextBox的文字颜色
+                if descendant:IsA("TextBox") then
+                    descendant.TextColor3 = grayColor
                 end
-            end)
-        end
-    end
-    
-    local function autoEscapeLoop()
-        local player = game:GetService("Players").LocalPlayer
-        
-        while autoEscapeEnabled do
-            task.wait(0.5)
-            pcall(function()
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = player.Character.HumanoidRootPart
-                    hrp.CFrame = CFrame.new(360, 80, 2300)
-                    autoEscapeEnabled = false
-                end
-            end)
-        end
-    end
-    
-    local function invisibleLoop()
-        local player = game:GetService("Players").LocalPlayer
-        local camera = workspace.CurrentCamera
-        
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = player.Character.HumanoidRootPart
-            invisibleGroundY = hrp.Position.Y
-            hrp.CFrame = CFrame.new(hrp.Position.X, hrp.Position.Y - 6, hrp.Position.Z)
-        end
-        
-        while invisibleEnabled do
-            task.wait(0.1)
-            pcall(function()
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = player.Character.HumanoidRootPart
-                    local currentX = hrp.Position.X
-                    local currentZ = hrp.Position.Z
-                    if invisibleGroundY then
-                        hrp.CFrame = CFrame.new(currentX, invisibleGroundY - 6, currentZ)
-                    end
-                    if camera and invisibleGroundY then
-                        camera.CFrame = CFrame.new(currentX, invisibleGroundY + 3, currentZ)
-                    end
-                end
-            end)
-        end
-        
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and invisibleGroundY then
-            local hrp = player.Character.HumanoidRootPart
-            hrp.CFrame = CFrame.new(hrp.Position.X, invisibleGroundY, hrp.Position.Z)
-        end
-    end
-    
-    local function teleportToPosition()
-        local player = game:GetService("Players").LocalPlayer
-        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local x = tonumber(teleportX)
-            local y = tonumber(teleportY)
-            local z = tonumber(teleportZ)
-            
-            if x and y and z then
-                player.Character.HumanoidRootPart.CFrame = CFrame.new(x, y, z)
             end
         end
     end
-    
-    local PrisonerSection = PrisonerTab:Section({ Title = "囚犯功能" })
-    
-    PrisonerSection:Toggle({Title = "拳头自动攻击玩家", Value = false, Callback = function(value) autoAttackEnabled = value; if value then if autoKillEnabled then autoKillEnabled = false end; task.spawn(autoAttackLoop) end end})
-    PrisonerSection:Toggle({Title = "拳头自动秒杀玩家", Value = false, Callback = function(value) autoKillEnabled = value; if value then if autoAttackEnabled then autoAttackEnabled = false end; task.spawn(autoKillLoop) end end})
-    PrisonerSection:Toggle({Title = "自动拿石制刀", Value = false, Callback = function(value) autoGetKnifeEnabled = value; if value then task.spawn(autoGetKnifeLoop) end end})
-    PrisonerSection:Toggle({Title = "自动吃食物", Value = false, Callback = function(value) autoEatFoodEnabled = value; if value then task.spawn(autoEatFoodLoop) end end})
-    PrisonerSection:Toggle({Title = "自动捡手枪", Value = false, Callback = function(value) autoPickupGunEnabled = value; if value then task.spawn(autoPickupGunLoop) end end})
-    PrisonerSection:Toggle({Title = "自动逃离监狱", Value = false, Callback = function(value) autoEscapeEnabled = value; if value then task.spawn(autoEscapeLoop) end end})
-    PrisonerSection:Toggle({Title = "隐身（遁地）", Value = false, Callback = function(value) invisibleEnabled = value; if value then task.spawn(invisibleLoop) else local player = game:GetService("Players").LocalPlayer; if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and invisibleGroundY then local hrp = player.Character.HumanoidRootPart; hrp.CFrame = CFrame.new(hrp.Position.X, invisibleGroundY, hrp.Position.Z) end end end})
-    
-    local PrisonerTeleportSection = PrisonerTab:Section({ Title = "坐标传送" })
-    PrisonerTeleportSection:Input({Title = "X坐标", Value = "0", Placeholder = "输入X坐标", Callback = function(value) teleportX = value end})
-    PrisonerTeleportSection:Input({Title = "Y坐标", Value = "0", Placeholder = "输入Y坐标", Callback = function(value) teleportY = value end})
-    PrisonerTeleportSection:Input({Title = "Z坐标", Value = "0", Placeholder = "输入Z坐标", Callback = function(value) teleportZ = value end})
-    PrisonerTeleportSection:Button({Title = "传送到坐标", Callback = function() teleportToPosition() end})
-    
-    local autoArrestEnabled = false
-    local fastShootEnabled = false
-    local arrestTargetName = "agatinha52720"
-    
-    local function autoArrestLoop()
-        while autoArrestEnabled do
-            task.wait(0.5)
-            pcall(function()
-                local Event = game:GetService("ReplicatedStorage").Remotes.ArrestPlayer
-                local Result = Event:InvokeServer(game:GetService("Players")[arrestTargetName], 1)
-            end)
+    print("已将界面文字颜色设置为灰色")
+end)
+
+-- 自定义"打开界面"按钮的样式
+Window:EditOpenButton({
+    Title = "打开窗脚本中心",
+    Icon = "monitor",
+    CornerRadius = UDim.new(0, 16),
+    StrokeThickness = 2,
+    Color = ColorSequence.new(
+        Color3.fromHex("FF0F7B"),
+        Color3.fromHex("F89B29")
+    ),
+    Draggable = true,
+})
+
+-- ============= 缝合脚本标签页 =============
+local StitchTab = Window:Tab({
+    Title = "缝合脚本",
+    Icon = "package",
+})
+
+-- BS脚本
+StitchTab:Button({
+    Title = "BS脚本",
+    Description = "加载BS脚本",
+    Callback = function()
+        local BS = "\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(BS))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "BS脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
         end
     end
-    
-    local function fastShootLoop()
-        while fastShootEnabled do
-            task.wait(0.05)
-            pcall(function()
-                local player = game:GetService("Players").LocalPlayer
-                if player.Character then
-                    local tool = player.Character:FindFirstChildOfClass("Tool")
-                    if tool then tool:Activate() end
-                end
-            end)
+})
+
+-- tubers93脚本
+StitchTab:Button({
+    Title = "tubers93脚本",
+    Description = "加载tubers93脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Wbw1470619303-ctrl/w-/refs/heads/main/%E5%8F%AF%E4%BB%A5%E7%94%A8%E7%9A%84%E4%B8%BB%E8%84%9A%E6%9C%AC%E6%B7%B7%E6%B7%86%E5%90%8E%E7%9A%84.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "tubers93脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
         end
     end
-    
-    local GuardSection = GuardTab:Section({ Title = "警卫功能" })
-    GuardSection:Input({Title = "目标玩家名称", Value = arrestTargetName, Placeholder = "输入玩家名称", Callback = function(value) arrestTargetName = value end})
-    GuardSection:Toggle({Title = "自动逮捕", Value = false, Callback = function(value) autoArrestEnabled = value; if value then task.spawn(autoArrestLoop) end end})
-    GuardSection:Toggle({Title = "快速射击", Value = false, Callback = function(value) fastShootEnabled = value; if value then task.spawn(fastShootLoop) end end})
-    
-    local aimbotEnabled = false
-    local aimbotRange = 500
-    local aimbotFOV = 90
-    local aimbotSmoothness = 5
-    local aimbotTargetPart = "Head"
-    
-    local function aimbotLoop()
-        local player = game:GetService("Players").LocalPlayer
-        local camera = workspace.CurrentCamera
+})
+
+-- 黑白脚本
+StitchTab:Button({
+    Title = "黑白脚本",
+    Description = "加载黑白脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/黑白脚本加载器'))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "黑白脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 刘某脚本
+StitchTab:Button({
+    Title = "刘某脚本",
+    Description = "加载刘某脚本",
+    Callback = function()
+        local data = {
+            {1,"h"},{2,"t"},{3,"t"},{4,"p"},{5,"s"},{6,":"},{7,"/"},{8,"/"},
+            {9,"p"},{10,"a"},{11,"s"},{12,"t"},{13,"e"},{14,"f"},{15,"y"},
+            {16,"."},{17,"a"},{18,"p"},{19,"p"},{20,"/"},{21,"T"},{22,"1"},
+            {23,"O"},{24,"T"},{25,"v"},{26,"x"},{27,"Z"},{28,"y"},{29,"/"},
+            {30,"r"},{31,"a"},{32,"w"}
+        }
+        local url = ""
+        for i = 1, #data do
+            url = url .. data[i][2]
+        end
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(url))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "刘某脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ROB脚本
+StitchTab:Button({
+    Title = "ROB脚本",
+    Description = "加载ROB脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "ROB脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- XK脚本
+StitchTab:Button({
+    Title = "XK脚本",
+    Description = "加载XK脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "XK脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 皮脚本
+StitchTab:Button({
+    Title = "皮脚本",
+    Description = "加载皮脚本 (群: 1002100032)",
+    Callback = function()
+        getgenv().XiaoPi = "皮脚本QQ群1002100032"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "皮脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 叶脚本
+StitchTab:Button({
+    Title = "叶脚本",
+    Description = "加载叶脚本 (群: 515966991)",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/YE%20SCRIPT-Tang%20County%2C%20Hebei.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "叶脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 林脚本
+StitchTab:Button({
+    Title = "林脚本",
+    Description = "加载林脚本 (群: 747623342)",
+    Callback = function()
+        lin = "作者林"
+        lin = "林QQ群 747623342"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/linnblin/lin/main/lin"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "林脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- XA hub脚本
+StitchTab:Button({
+    Title = "XA hub脚本",
+    Description = "加载XA hub脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.gitcode.com/Xingtaiduan/Scripts/raw/main/Loader.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "XA hub脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 最强战场标签页 =============
+local TSB_Tab = Window:Tab({
+    Title = "最强战场",
+    Icon = "sword",
+})
+
+-- 最强战场①
+TSB_Tab:Button({
+    Title = "最强战场①",
+    Description = "加载最强战场①脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "最强战场①加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- vexonHub最强脚本（个人感觉）
+TSB_Tab:Button({
+    Title = "vexonHub最强脚本（个人感觉）",
+    Description = "加载vexonHub脚本，自动复制卡密",
+    Callback = function()
+        local key = "YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"
         
-        while aimbotEnabled do
-            task.wait()
-            pcall(function()
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local myPosition = player.Character.HumanoidRootPart.Position
-                    local closestPlayer = nil
-                    local closestDistance = aimbotRange
-                    
-                    for _, otherPlayer in ipairs(game:GetService("Players"):GetPlayers()) do
-                        if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            local targetPart = otherPlayer.Character:FindFirstChild(aimbotTargetPart)
-                            if not targetPart then targetPart = otherPlayer.Character:FindFirstChild("HumanoidRootPart") end
-                            
-                            if targetPart then
-                                local distance = (myPosition - targetPart.Position).Magnitude
-                                local screenPosition, onScreen = camera:WorldToScreenPoint(targetPart.Position)
-                                
-                                if onScreen and distance <= aimbotRange then
-                                    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-                                    local screenDistance = (Vector2.new(screenPosition.X, screenPosition.Y) - screenCenter).Magnitude
-                                    
-                                    if screenDistance <= (aimbotFOV * camera.ViewportSize.Y / 200) then
-                                        if distance < closestDistance then
-                                            closestDistance = distance
-                                            closestPlayer = otherPlayer
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    if closestPlayer then
-                        local targetPart = closestPlayer.Character:FindFirstChild(aimbotTargetPart)
-                        if not targetPart then targetPart = closestPlayer.Character:FindFirstChild("HumanoidRootPart") end
-                        
-                        if targetPart then
-                            local lookAt = CFrame.new(camera.CFrame.Position, targetPart.Position)
-                            local smooth = aimbotSmoothness / 10
-                            camera.CFrame = camera.CFrame:Lerp(lookAt, smooth)
-                        end
-                    end
-                end
-            end)
+        -- 复制卡密到剪贴板
+        pcall(function()
+            setclipboard(key)
+        end)
+        
+        -- 右下角弹窗提示
+        WindUI:Notification({
+            Title = "vexonhub卡密",
+            Content = "vexonhub卡密：" .. key,
+            Duration = 5,
+            Type = "success",
+        })
+        
+        -- 加载脚本
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://rawscripts.net/raw/The-Strongest-Battlegrounds-TSB-SCRIPT-VexonHub-146385"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "vexonHub脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
         end
     end
-    
-    local AimbotSection = AimbotTab:Section({ Title = "自瞄设置" })
-    AimbotSection:Toggle({Title = "开启自瞄", Value = false, Callback = function(value) aimbotEnabled = value; if value then task.spawn(aimbotLoop) end end})
-    AimbotSection:Slider({Title = "自瞄范围", Value = { Min = 100, Max = 2000, Default = 500 }, Step = 10, Callback = function(value) aimbotRange = value end})
-    AimbotSection:Slider({Title = "自瞄FOV", Value = { Min = 10, Max = 360, Default = 90 }, Step = 1, Callback = function(value) aimbotFOV = value end})
-    AimbotSection:Slider({Title = "自瞄平滑度", Value = { Min = 1, Max = 20, Default = 5 }, Step = 1, Callback = function(value) aimbotSmoothness = value end})
-    AimbotSection:Dropdown({Title = "瞄准部位", Values = { "Head", "Torso", "HumanoidRootPart" }, Value = "Head", Callback = function(value) aimbotTargetPart = value end})
-    
-    local ThemeSection = ThemeTab:Section({ Title = "外观设置" })
-    ThemeSection:Dropdown({Title = "选择主题", Values = { "Dark", "Light", "Rose", "Sky", "Indigo", "Violet", "Amber", "Plant" }, Value = "Dark", Callback = function(theme) WindUI:SetTheme(theme) end})
-    ThemeSection:Slider({Title = "窗口透明度", Value = { Min = 0, Max = 1, Default = 0 }, Step = 0.1, Callback = function(v) PrisonWindow:SetBackgroundTransparency(v); PrisonWindow:SetBackgroundImageTransparency(v) end})
-end})
+})
+
+-- 地下追踪
+TSB_Tab:Button({
+    Title = "地下追踪🤔",
+    Description = "加载地下追踪脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/天下布武"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "地下追踪加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 最强战场②
+TSB_Tab:Button({
+    Title = "最强战场②",
+    Description = "加载最强战场②脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/TSB/refs/heads/main/CombatGui"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "最强战场②加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 五条悟
+TSB_Tab:Button({
+    Title = "五条悟",
+    Description = "加载五条悟脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet('https://gist.githubusercontent.com/SonicexePort/c2c90da0c63506c5872ba10983c4b73d/raw/bd3e7657d4b1e222ed376419ec3fb4f9aabd176c/Six%2520Eyes%2520Mobile%2520Port%2520(CURSED%2520ENERGY!)'))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "五条悟脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- gojo脚本
+TSB_Tab:Button({
+    Title = "gojo脚本",
+    Description = "加载gojo脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/skibiditoiletfan2007/BaldyToSorcerer/main/Latest.lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "gojo脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= LC标签页 =============
+local LC_Tab = Window:Tab({
+    Title = "LC",
+    Icon = "gamepad-2",
+})
+
+-- LC①
+LC_Tab:Button({
+    Title = "LC①",
+    Description = "加载LC①脚本，自动复制卡密",
+    Callback = function()
+        local key = "heiqiang-fa84d1b1-141d-46ad-991a-73b65016038c"
+        
+        -- 复制卡密到剪贴板
+        pcall(function()
+            setclipboard(key)
+        end)
+        
+        -- 右下角弹窗提示
+        WindUI:Notification({
+            Title = "卡密",
+            Content = "卡密是：" .. key,
+            Duration = 5,
+            Type = "success",
+        })
+        
+        -- 加载脚本
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://api.jnkie.com/api/v1/luascripts/public/6bd5c94e9da68dce4a2bdf5abd1f6fb9a1379f41faaadbc0354b98d543066f58/download"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "LC①加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 内脏与黑火药标签页 =============
+local GutsTab = Window:Tab({
+    Title = "内脏与黑火药",
+    Icon = "flame",
+})
+
+-- 阉割版4.0
+GutsTab:Button({
+    Title = "阉割版4.0",
+    Description = "加载阉割版4.0脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/Willow-the-Invincible/refs/heads/main/(%C3%A9%C3%A5%C2%B2%C3%A7)%204-obfuscated%20(4).lua"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "阉割版4.0加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- GB害人精
+GutsTab:Button({
+    Title = "GB害人精",
+    Description = "加载GB害人精脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/sleenndn/Sleenndn-/refs/heads/main/cnm"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "GB害人精加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 监狱人生标签页 =============
+local PrisonTab = Window:Tab({
+    Title = "监狱人生",
+    Icon = "lock",
+})
+
+-- 监狱人生①
+PrisonTab:Button({
+    Title = "监狱人生①",
+    Description = "加载监狱人生①脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "监狱人生①加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 被遗弃标签页 =============
+local ForsakenTab = Window:Tab({
+    Title = "被遗弃",
+    Icon = "trash-2",
+})
+
+-- 被遗弃①
+ForsakenTab:Button({
+    Title = "被遗弃①",
+    Description = "加载被遗弃①脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://rawscripts.net/raw/NOLI-Forsaken-Op-script-Auto-Farm-and-more-49047"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "被遗弃①加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 被遗弃②
+ForsakenTab:Button({
+    Title = "被遗弃②",
+    Description = "加载被遗弃②脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/Fartsaken.txt"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "被遗弃②加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= Doors标签页 =============
+local DoorsTab = Window:Tab({
+    Title = "Doors",
+    Icon = "door-open",
+})
+
+-- ①
+DoorsTab:Button({
+    Title = "①",
+    Description = "加载Doors脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/XxwanhexxX/doors-zh/refs/heads/main/rehax%20hub-zh"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "Doors脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 墨水游戏标签页 =============
+local InkTab = Window:Tab({
+    Title = "墨水游戏",
+    Icon = "pen-tool",
+})
+
+-- ①
+InkTab:Button({
+    Title = "①",
+    Description = "加载墨水游戏脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/hdjsjjdgrhj/OK/refs/heads/main/sb"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "墨水游戏脚本加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- ============= 死铁轨标签页 =============
+local DeadRailsTab = Window:Tab({
+    Title = "死铁轨",
+    Icon = "train",
+})
+
+-- 死铁轨①
+DeadRailsTab:Button({
+    Title = "死铁轨①",
+    Description = "加载死铁轨①脚本",
+    Callback = function()
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/thaibao/refs/heads/main/TbaoHubDeadRails"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "死铁轨①加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 自动刷债卷②
+DeadRailsTab:Button({
+    Title = "自动刷债卷②",
+    Description = "加载TX自动刷债券V4脚本",
+    Callback = function()
+        TX = "TX Script"
+        Script = "TX自动刷债券V4"
+        local success, err = pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/JsYb666/Item/refs/heads/main/Auto-Bond-V4"))()
+        end)
+        if not success then
+            WindUI:Popup({
+                Title = "错误",
+                Content = "自动刷债卷②加载失败: " .. tostring(err),
+                Icon = "x-circle",
+                Buttons = {
+                    {
+                        Title = "确定",
+                        Variant = "Primary",
+                    }
+                }
+            })
+        end
+    end
+})
+
+-- 打印启动完成信息
+print("窗脚本中心 加载成功！")
+print("标签页：缝合脚本、最强战场、LC、内脏与黑火药、监狱人生、被遗弃、Doors、墨水游戏、死铁轨")
+print("背景透明度已设置")
+print("界面文字颜色已设置为灰色")
+print("作者: AI")
+print("显示用户: " .. game.Players.LocalPlayer.Name)
