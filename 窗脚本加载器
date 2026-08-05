@@ -498,8 +498,7 @@ end
 local Window = WindUI:CreateWindow({
     Title = "窗脚本",
     Icon = "zap",
-    Theme = "Indigo",
-    KeySystem = {Key = {"何意味"}, SaveKey = true}
+    Theme = "Indigo"
 })
 
 local NoticeTab = Window:Tab({Title = "公告", Icon = "megaphone"})
@@ -538,7 +537,7 @@ ScriptSection:Button({Title = "死亡笔记", Callback = function() loadstring(g
 ScriptSection:Button({Title = "飞车", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/vb/main/%E9%A3%9E%E8%BD%A6.lua"))() end})
 ScriptSection:Button({Title = "假延迟脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Egor-simple-ui-91106"))() end})
 ScriptSection:Button({Title = "操人脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/BkeffrT5/raw"))() end})
-ScriptSection:Button({Title = "防甩飞（可开关）", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Linux6699/DaHubRevival/main/AntiFling.lua"))() end})
+ScriptSection:Button({Title = "防甩飞", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Linux6699/DaHubRevival/main/AntiFling.lua"))() end})
 
 local FlySection = GeneralTab:Section({Title = "飞行脚本"})
 FlySection:Button({Title = "r15无敌少侠飞行脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/396abc/Script/refs/heads/main/MobileFly.lua"))() end})
@@ -554,8 +553,9 @@ VisualSection:Slider({Title = "旋转速度", Value = {Min = 1, Max = 50, Defaul
 VisualSection:Toggle({Title = "夜视", Value = false, Callback = function(s) if s then enNV() else disNV() end end})
 VisualSection:Toggle({Title = "玩家进入通知", Value = false, Callback = function(s) if s then enPJN() else disPJN() end end})
 VisualSection:Slider({Title = "重力设置", Value = {Min = 0, Max = 500, Default = gravityValue}, Step = 10, Callback = function(v) setGravity(v) end})
+VisualSection:Button({Title = "让其他玩家变成noob（需要他们死后）", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-noob-all-110242"))() end})
 
-local CombatSection = GeneralTab:Section({Title = "战斗功能"})
+local CombatSection = GeneralTab:Section({Title = "自瞄功能"})
 CombatSection:Slider({Title = "自瞄范围", Value = {Min = 100, Max = 1000, Default = 500}, Step = 50, Callback = function(v) aimRange = v end})
 CombatSection:Toggle({Title = "自瞄", Value = false, Callback = function(s) if s then enAimbot() else disAimbot() end end})
 
@@ -616,6 +616,7 @@ OtherScriptSection:Button({Title = "叶脚本", Callback = function() loadstring
 OtherScriptSection:Button({Title = "动作脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))() end})
 OtherScriptSection:Button({Title = "ROB", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))() end})
 OtherScriptSection:Button({Title = "XK", Callback = function() loadstring(game:HttpGet(('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))() end})
+OtherScriptSection:Button({Title = "情云脚本中心", Callback = function() loadstring(utf8.char((function() return table.unpack({108,111,97,100,115,116,114,105,110,103,40,103,97,109,101,58,72,116,116,112,71,101,116,40,34,104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,117,98,117,115,101,114,99,111,110,116,101,110,116,46,99,111,109,47,67,104,105,110,97,81,89,47,45,47,109,97,105,110,47,37,69,54,37,56,51,37,56,53,37,69,52,37,66,65,37,57,49,34,41,41,40,41})end)()))() end})
 OtherScriptSection:Button({Title = "祖国人", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))() end) end})
 OtherScriptSection:Button({Title = "天下布武", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end) end})
 
