@@ -16,15 +16,19 @@ if not identifyexecutor then
     return
 end
 
--- WindUI加载（添加保护）
-local WindUI = nil
+-- 新UI库加载
+local repo = 'https://raw.githubusercontent.com/KingScriptAE/No-sirve-nada./refs/heads/main/'
+local Library = nil
+local ThemeManager = nil
+local SaveManager = nil
+
 local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet(
-        "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
-    ))()
+    Library = loadstring(game:HttpGet(repo .. 'Library.lua'))()
+    ThemeManager = loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))()
+    SaveManager = loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))()
 end)
 
-if not WindUI then
+if not Library then
     StarterGui:SetCore("SendNotification", {
         Title = "错误",
         Text = "UI库加载失败: " .. tostring(err),
@@ -52,7 +56,7 @@ player.CharacterAdded:Connect(function(newChar)
     humanoid = character:WaitForChild("Humanoid")
 end)
 
--- 状态
+-- 状态变量
 local noclip = false
 local infiniteJump = false
 local god = false
@@ -69,25 +73,25 @@ local spinConnection = nil
 local nightVision = false
 local playerJoinNotify = false
 local gravityValue = workspace.Gravity
-
--- 追踪
 local trackTarget = nil
 local trackConnection = nil
-
--- 飞行
 local flyGui = nil
 local nowe = false
 local tpwalking = false
-
--- 循环甩飞
 local autoFlingEnabled = false
 
+-- 获取玩家列表
 function getPlayerList()
     local t = {}
-    for _,p in ipairs(Players:GetPlayers()) do if p ~= player then table.insert(t, p.Name) end end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            table.insert(t, p.Name)
+        end
+    end
     return #t > 0 and t or {"无其他玩家"}
 end
 
+-- 飞行GUI
 function openFlyGUI()
     if flyGui then flyGui:Destroy() end
     local function restoreCharacter()
@@ -201,7 +205,7 @@ function suicide() if character and humanoid then humanoid.Health=0 end end
 function killAll() for _,p in ipairs(Players:GetPlayers())do if p~=player and p.Character then local h=p.Character:FindFirstChild("Humanoid");if h and h.Health>0 then h:TakeDamage(h.MaxHealth)end end end end
 function rejoin() TeleportService:Teleport(game.PlaceId,player)end
 function leave() game:Shutdown()end
-function closeScript() if flyGui then nowe=false;tpwalking=false;flyGui:Destroy()end;disNoclip();disIJ();disGod();disFrozen();disESP();disAFK();disSpin();disNV();disPJN();stopTrack();autoFlingEnabled=false;if Window then Window:Destroy()end end
+function closeScript() if flyGui then nowe=false;tpwalking=false;flyGui:Destroy()end;disNoclip();disIJ();disGod();disFrozen();disESP();disAFK();disSpin();disNV();disPJN();stopTrack();autoFlingEnabled=false;if Window then Window:Unload()end end
 function enAimbot() aimbot=true;spawn(function() while aimbot do wait();local cl,cd=nil,aimRange;for _,p in ipairs(Players:GetPlayers())do if p~=player and p.Character then local hd=p.Character:FindFirstChild("Head");local hu=p.Character:FindFirstChild("Humanoid");if hd and hu and hu.Health>0 then local sp,on=camera:WorldToViewportPoint(hd.Position);if on then local mp=UserInputService:GetMouseLocation();local d=(Vector2.new(sp.X,sp.Y)-mp).Magnitude;if d<cd then cd=d;cl=hd end end end end end;if cl then camera.CFrame=CFrame.new(camera.CFrame.Position,cl.Position)end end end)end
 function disAimbot() aimbot=false end
 function enSpin() spinning=true;spinConnection=RunService.Heartbeat:Connect(function() if rootPart then rootPart.CFrame=rootPart.CFrame*CFrame.Angles(0,math.rad(spinSpeed),0) end end)end
@@ -209,7 +213,7 @@ function disSpin() spinning=false;if spinConnection then spinConnection:Disconne
 function setSpinSpeed(v) spinSpeed=v;if spinning then disSpin();enSpin() end end
 function enNV() nightVision=true;game:GetService("Lighting").Brightness=2;game:GetService("Lighting").ClockTime=14 end
 function disNV() nightVision=false;game:GetService("Lighting").Brightness=1 end
-function enPJN() playerJoinNotify=true;Players.PlayerAdded:Connect(function(p) if playerJoinNotify then StarterGui:SetCore("SendNotification",{Title="窗脚本",Text=p.Name.." 加入了服务器",Duration=3,Button1="确定"})end end)end
+function enPJN() playerJoinNotify=true;Players.PlayerAdded:Connect(function(p) if playerJoinNotify then Library:Notify(p.Name.." 加入了服务器", 3) end end)end
 function disPJN() playerJoinNotify=false end
 function setGravity(v) workspace.Gravity=v;gravityValue=v end
 
@@ -237,15 +241,13 @@ function startTrack(name)
 end
 function stopTrack() trackTarget=nil;if trackConnection then trackConnection:Disconnect();trackConnection=nil end end
 
--- 新甩飞功能
+-- 甩飞功能
 local function newFlingPlayer(selectedName)
     if not selectedName or selectedName == "" or selectedName == "无其他玩家" then return end
-
     local targetNames = { selectedName }
     local Players = game:GetService("Players")
     local localPlayer = Players.LocalPlayer
     local isAllOrOthers = false
-
     local function FindPlayerByName(name)
         name = name:lower()
         if name == "all" or name == "others" then
@@ -274,15 +276,6 @@ local function newFlingPlayer(selectedName)
             return
         end
     end
-
-    local function SendNotification(title, text, duration)
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = title,
-            Text = text,
-            Duration = duration,
-        })
-    end
-
     local function ThrowPlayer(targetPlayer)
         local localCharacter = localPlayer.Character
         local localHumanoid = localCharacter and localCharacter:FindFirstChildOfClass("Humanoid")
@@ -313,7 +306,8 @@ local function newFlingPlayer(selectedName)
                 getgenv().OldPos = localRootPart.CFrame
             end
             if targetHumanoid and targetHumanoid.Sit and not isAllOrOthers then
-                return SendNotification("玩家消失", "已停止", 5)
+                Library:Notify("玩家消失，已停止", 5)
+                return
             end
             if targetHead then
                 workspace.CurrentCamera.CameraSubject = targetHead
@@ -429,7 +423,8 @@ local function newFlingPlayer(selectedName)
             elseif not targetRootPart and not targetHead and targetAccessory and accessoryHandle then
                 PerformThrowAnimation(accessoryHandle)
             else
-                return SendNotification("错误", "无法甩飞该玩家", 5)
+                Library:Notify("无法甩飞该玩家", 5)
+                return
             end
             bodyVelocity:Destroy()
             localHumanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
@@ -449,10 +444,9 @@ local function newFlingPlayer(selectedName)
             until (localRootPart.Position - getgenv().OldPos.p).Magnitude < 25
             workspace.FallenPartsDestroyHeight = getgenv().FPDH
         else
-            SendNotification("玩家消失", "已停止", 5)
+            Library:Notify("玩家消失，已停止", 5)
         end
     end
-
     if targetNames[1] then
         for _, name in next, targetNames, nil do
             local foundPlayer = FindPlayerByName(name)
@@ -476,205 +470,944 @@ local function newFlingPlayer(selectedName)
             if foundPlayer.UserId ~= 1414978355 then
                 ThrowPlayer(foundPlayer)
             else
-                SendNotification("检测到玩家消失", "已停止", 5)
+                Library:Notify("检测到玩家消失，已停止", 5)
             end
         elseif not FindPlayerByName(name) and not isAllOrOthers then
-            SendNotification("未获取到玩家或工具", "已停止", 5)
+            Library:Notify("未获取到玩家或工具，已停止", 5)
         end
     end
 end
 
-local musicData={}
-local musicFile="chuang_music.json"
-if writefile and readfile and isfile then
-    pcall(function() 
-        if isfile(musicFile) then
-            musicData=HttpService:JSONDecode(readfile(musicFile)) 
-        end
-    end)
-end
+-- ==========================================================
+-- 创建新UI窗口（去掉图标）
+-- ==========================================================
+local Options = Library.Options
+local Toggles = Library.Toggles
 
--- UI
-local Window = WindUI:CreateWindow({
+local Window = Library:CreateWindow({
     Title = "窗脚本",
-    Icon = "zap",
-    Theme = "Indigo"
+    Footer = "By 窗",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
 })
 
-local NoticeTab = Window:Tab({Title = "公告", Icon = "megaphone"})
-local NoticeSection = NoticeTab:Section({Title = "脚本信息"})
-NoticeSection:Button({Title = "脚本功能少", Callback = function() end})
-NoticeSection:Button({Title = "脚本是让AI写的", Callback = function() end})
-NoticeSection:Button({Title = "脚本完全免费", Callback = function() end})
-NoticeSection:Button({Title = "注入器: "..(identifyexecutor and identifyexecutor() or "未知"), Callback = function() end})
-NoticeSection:Button({Title = "用户名: "..player.Name, Callback = function() end})
+-- 创建标签页
+local Tabs = {
+    Notice = Window:AddTab("公告", "megaphone"),
+    General = Window:AddTab("通用", "user"),
+    Fling = Window:AddTab("甩飞", "zap"),
+    Tracking = Window:AddTab("追踪类", "crosshair"),
+    Injector = Window:AddTab("注入器", "download"),
+    OtherScript = Window:AddTab("其他脚本", "code")
+    Server = Window:AddTab("脚本服务器", "server"),
+    FE = Window:AddTab("FE脚本", "flame"),
+    Music = Window:AddTab("音乐", "music"),
+    AIServer = Window:AddTab("AI脚本", "bot"),
+    Settings = Window:AddTab("设置", "settings"),
+}
 
-local GeneralTab = Window:Tab({Title = "通用", Icon = "user"})
+-- ==========================================================
+-- 公告标签页
+-- ==========================================================
+local NoticeGroup = Tabs.Notice:AddLeftGroupbox("脚本信息")
+NoticeGroup:AddButton({Text = "脚本功能少",Func = function() end})
+NoticeGroup:AddButton({Text = "脚本是让AI写的",Func = function() end})
+NoticeGroup:AddButton({Text = "脚本完全免费",Func = function() end})
+NoticeGroup:AddLabel("注入器: " .. (identifyexecutor and identifyexecutor() or "未知"))
+NoticeGroup:AddLabel("用户名: " .. player.Name)
 
-local MovementSection = GeneralTab:Section({Title = "移动功能"})
-MovementSection:Button({Title = "窗飞行", Callback = function() openFlyGUI() end})
-MovementSection:Toggle({Title = "穿墙", Value = false, Callback = function(s) if s then enNoclip() else disNoclip() end end})
-MovementSection:Slider({Title = "走路速度", Value = {Min = 16, Max = 500, Default = 16}, Step = 5, Callback = function(v) setWS(v) end})
-MovementSection:Toggle({Title = "无限跳", Value = false, Callback = function(s) if s then enIJ() else disIJ() end end})
-MovementSection:Toggle({Title = "无法移动", Value = false, Callback = function(s) if s then enFrozen() else disFrozen() end end})
+-- ==========================================================
+-- 通用标签页 - 移动功能
+-- ==========================================================
+local MovementGroup = Tabs.General:AddLeftGroupbox("移动功能")
+MovementGroup:AddButton({
+    Text = "窗飞行",
+    Func = function() 
+        openFlyGUI() 
+        Library:Notify("窗飞行已打开！", 3)
+    end,
+})
+MovementGroup:AddToggle('NoclipToggle', {
+    Text = "穿墙",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enNoclip() 
+            Library:Notify("穿墙已开启！", 3)
+        else 
+            disNoclip() 
+            Library:Notify("穿墙已关闭！", 3)
+        end 
+    end,
+})
+MovementGroup:AddSlider('WalkSpeedSlider', {
+    Text = "走路速度",
+    Default = 16,
+    Min = 16,
+    Max = 500,
+    Rounding = 0,
+    Suffix = " sps",
+    Callback = function(v) setWS(v) end,
+})
+MovementGroup:AddToggle('InfiniteJumpToggle', {
+    Text = "无限跳",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enIJ() 
+            Library:Notify("无限跳已开启！", 3)
+        else 
+            disIJ() 
+            Library:Notify("无限跳已关闭！", 3)
+        end 
+    end,
+})
+MovementGroup:AddToggle('FrozenToggle', {
+    Text = "无法移动",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enFrozen() 
+            Library:Notify("无法移动已开启！", 3)
+        else 
+            disFrozen() 
+            Library:Notify("无法移动已关闭！", 3)
+        end 
+    end,
+})
 
-local CharacterSection = GeneralTab:Section({Title = "角色功能"})
-CharacterSection:Toggle({Title = "无敌", Value = false, Callback = function(s) if s then enGod() else disGod() end end})
-CharacterSection:Toggle({Title = "隐身", Value = false, Callback = function(s) if s then enInvisible() else disInvisible() end end})
-CharacterSection:Toggle({Title = "ESP透视", Value = false, Callback = function(s) if s then enESP() else disESP() end end})
-CharacterSection:Button({Title = "击杀所有人", Callback = function() killAll() end})
-CharacterSection:Button({Title = "自杀", Callback = function() suicide() end})
+-- ==========================================================
+-- 通用标签页 - 角色功能
+-- ==========================================================
+local CharacterGroup = Tabs.General:AddRightGroupbox("角色功能")
+CharacterGroup:AddToggle('GodToggle', {
+    Text = "无敌",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enGod() 
+            Library:Notify("无敌已开启！", 3)
+        else 
+            disGod() 
+            Library:Notify("无敌已关闭！", 3)
+        end 
+    end,
+})
+CharacterGroup:AddToggle('InvisibleToggle', {
+    Text = "隐身",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enInvisible() 
+            Library:Notify("隐身已开启！", 3)
+        else 
+            disInvisible() 
+            Library:Notify("隐身已关闭！", 3)
+        end 
+    end,
+})
+CharacterGroup:AddToggle('ESPToggle', {
+    Text = "ESP透视",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enESP() 
+            Library:Notify("ESP透视已开启！", 3)
+        else 
+            disESP() 
+            Library:Notify("ESP透视已关闭！", 3)
+        end 
+    end,
+})
+CharacterGroup:AddButton({
+    Text = "击杀所有人",
+    Func = function() 
+        killAll() 
+        Library:Notify("已击杀所有人！", 3)
+    end,
+})
+CharacterGroup:AddButton({
+    Text = "自杀",
+    Func = function() 
+        suicide() 
+        Library:Notify("已自杀！", 3)
+    end,
+})
 
-local ScriptSection = GeneralTab:Section({Title = "脚本功能"})
-ScriptSection:Button({Title = "控制玩家", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/Willow-the-Invincible/refs/heads/main/(%C3%A9%C3%A5%C2%B2%C3%A7)%204-obfuscated%20(4).lua"))() end})
-ScriptSection:Button({Title = "偷走玩家物品道具", Callback = function() stealItems() end})
-ScriptSection:Button({Title = "静默甩飞所有人", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/zqyDSUWX"))() end})
-ScriptSection:Button({Title = "雷欧飞踢", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-THE-REAL-dropkick-177199"))() end})
-ScriptSection:Button({Title = "铁拳甩飞", Callback = function() loadstring(game:HttpGet('https://raw.githubusercontent.com/0Ben1/fe/main/obf_rf6iQURzu1fqrytcnLBAvW34C9N55kS9g9G3CKz086rC47M6632sEd4ZZYB0AYgV.lua.txt'))() end})
-ScriptSection:Button({Title = "FPS（变流畅）", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/gclich/FPS-X-GUI/main/FPS_X.lua"))() end})
-ScriptSection:Button({Title = "获取管理员", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/sZpgTVas"))() end})
-ScriptSection:Button({Title = "死亡笔记", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/tt/main/%E6%AD%BB%E4%BA%A1%E7%AC%94%E8%AE%B0%20(1).txt"))() end})
-ScriptSection:Button({Title = "飞车", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/vb/main/%E9%A3%9E%E8%BD%A6.lua"))() end})
-ScriptSection:Button({Title = "假延迟脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Egor-simple-ui-91106"))() end})
-ScriptSection:Button({Title = "操人脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/BkeffrT5/raw"))() end})
-ScriptSection:Button({Title = "防甩飞", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Linux6699/DaHubRevival/main/AntiFling.lua"))() end})
+-- ==========================================================
+-- 通用标签页 - 脚本功能
+-- ==========================================================
+local ScriptGroup = Tabs.General:AddLeftGroupbox("脚本功能")
+ScriptGroup:AddButton({
+    Text = "控制玩家",
+    Func = function() 
+        Library:Notify("正在加载控制玩家...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/Willow-the-Invincible/refs/heads/main/(%C3%A9%C3%A5%C2%B2%C3%A7)%204-obfuscated%20(4).lua"))() end)
+        Library:Notify("控制玩家已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "偷走玩家物品道具",
+    Func = function() 
+        stealItems() 
+        Library:Notify("已偷取所有玩家物品！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "静默甩飞所有人",
+    Func = function() 
+        Library:Notify("正在加载静默甩飞...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/zqyDSUWX"))() end)
+        Library:Notify("静默甩飞已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "雷欧飞踢",
+    Func = function() 
+        Library:Notify("正在加载雷欧飞踢...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-THE-REAL-dropkick-177199"))() end)
+        Library:Notify("雷欧飞踢已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "铁拳甩飞",
+    Func = function() 
+        Library:Notify("正在加载铁拳甩飞...", 2)
+        pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/0Ben1/fe/main/obf_rf6iQURzu1fqrytcnLBAvW34C9N55kS9g9G3CKz086rC47M6632sEd4ZZYB0AYgV.lua.txt'))() end)
+        Library:Notify("铁拳甩飞已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "FPS（变流畅）",
+    Func = function() 
+        Library:Notify("正在优化FPS...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/gclich/FPS-X-GUI/main/FPS_X.lua"))() end)
+        Library:Notify("FPS优化已开启！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "获取管理员",
+    Func = function() 
+        Library:Notify("正在加载获取管理员...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/sZpgTVas"))() end)
+        Library:Notify("获取管理员已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "死亡笔记",
+    Func = function() 
+        Library:Notify("正在加载死亡笔记...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/tt/main/%E6%AD%BB%E4%BA%A1%E7%AC%94%E8%AE%B0%20(1).txt"))() end)
+        Library:Notify("死亡笔记已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "飞车",
+    Func = function() 
+        Library:Notify("正在加载飞车...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/dingding123hhh/vb/main/%E9%A3%9E%E8%BD%A6.lua"))() end)
+        Library:Notify("飞车已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "假延迟脚本",
+    Func = function() 
+        Library:Notify("正在加载假延迟脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Egor-simple-ui-91106"))() end)
+        Library:Notify("假延迟脚本已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "操人脚本",
+    Func = function() 
+        Library:Notify("正在加载操人脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastefy.app/BkeffrT5/raw"))() end)
+        Library:Notify("操人脚本已加载！", 3)
+    end,
+})
+ScriptGroup:AddButton({
+    Text = "防甩飞",
+    Func = function() 
+        Library:Notify("正在加载防甩飞...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Linux6699/DaHubRevival/main/AntiFling.lua"))() end)
+        Library:Notify("防甩飞已加载！", 3)
+    end,
+})
 
-local FlySection = GeneralTab:Section({Title = "飞行脚本"})
-FlySection:Button({Title = "r15无敌少侠飞行脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/396abc/Script/refs/heads/main/MobileFly.lua"))() end})
-FlySection:Button({Title = "r6无敌少侠飞行脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invincible-Mark-42041"))() end})
+-- ==========================================================
+-- 通用标签页 - 飞行脚本
+-- ==========================================================
+local FlyGroup = Tabs.General:AddRightGroupbox("飞行脚本")
+FlyGroup:AddButton({
+    Text = "r15无敌少侠飞行脚本",
+    Func = function() 
+        Library:Notify("正在加载r15飞行脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/396abc/Script/refs/heads/main/MobileFly.lua"))() end)
+        Library:Notify("r15飞行脚本已加载！", 3)
+    end,
+})
+FlyGroup:AddButton({
+    Text = "r6无敌少侠飞行脚本",
+    Func = function() 
+        Library:Notify("正在加载r6飞行脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invincible-Mark-42041"))() end)
+        Library:Notify("r6飞行脚本已加载！", 3)
+    end,
+})
 
-local OtherSection = GeneralTab:Section({Title = "其他脚本"})
-OtherSection:Button({Title = "r6鹿管脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/wa3v2Vgm/raw"))() end})
-OtherSection:Button({Title = "r15鹿管脚本", Callback = function() loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))() end})
-
-local VisualSection = GeneralTab:Section({Title = "视觉效果"})
-VisualSection:Toggle({Title = "旋转", Value = false, Callback = function(s) if s then enSpin() else disSpin() end end})
-VisualSection:Slider({Title = "旋转速度", Value = {Min = 1, Max = 50, Default = 10}, Step = 1, Callback = function(v) setSpinSpeed(v) end})
-VisualSection:Toggle({Title = "夜视", Value = false, Callback = function(s) if s then enNV() else disNV() end end})
-VisualSection:Toggle({Title = "玩家进入通知", Value = false, Callback = function(s) if s then enPJN() else disPJN() end end})
-VisualSection:Slider({Title = "重力设置", Value = {Min = 0, Max = 500, Default = gravityValue}, Step = 10, Callback = function(v) setGravity(v) end})
-VisualSection:Button({Title = "让其他玩家变成noob（需要他们死后）", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-noob-all-110242"))() end})
-
-local CombatSection = GeneralTab:Section({Title = "自瞄功能"})
-CombatSection:Slider({Title = "自瞄范围", Value = {Min = 100, Max = 1000, Default = 500}, Step = 50, Callback = function(v) aimRange = v end})
-CombatSection:Toggle({Title = "自瞄", Value = false, Callback = function(s) if s then enAimbot() else disAimbot() end end})
-
-local SystemSection = GeneralTab:Section({Title = "系统功能"})
-SystemSection:Toggle({Title = "反挂机", Value = false, Callback = function(s) if s then enAFK() else disAFK() end end})
-SystemSection:Button({Title = "重新加入", Callback = function() rejoin() end})
-SystemSection:Button({Title = "离开游戏", Callback = function() leave() end})
-SystemSection:Button({Title = "关闭脚本", Callback = function() closeScript() end})
-
--- 甩飞标签页
-local FlingTab = Window:Tab({Title = "甩飞", Icon = "zap"})
-local FlingSection = FlingTab:Section({Title = "玩家甩飞"})
-local flingDropdown = FlingSection:Dropdown({Title = "选择玩家", Values = getPlayerList(), Value = "", Callback = function(v) end})
-
-FlingSection:Button({Title = "甩飞一次", Callback = function()
-    local selectedValue = flingDropdown.Value
-    newFlingPlayer(selectedValue)
-end})
-
-FlingSection:Toggle({Title = "循环甩飞", Value = false, Callback = function(state)
-    autoFlingEnabled = state
-    if state then
-        spawn(function()
-            while autoFlingEnabled do
-                local selectedValue = flingDropdown.Value
-                if selectedValue and selectedValue ~= "" and selectedValue ~= "无其他玩家" then
-                    pcall(function()
-                        newFlingPlayer(selectedValue)
-                    end)
-                end
-                task.wait(0.1)
-            end
-        end)
+-- ==========================================================
+-- 通用标签页 - 其他脚本
+-- ==========================================================
+local OtherGroup = Tabs.General:AddLeftGroupbox("其他脚本")
+OtherGroup:AddButton({
+    Text = "r6鹿管脚本",
+    Func = function() 
+        Library:Notify("正在加载r6鹿管脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastefy.app/wa3v2Vgm/raw"))() end)
+        Library:Notify("r6鹿管脚本已加载！", 3)
+    end,
+})
+OtherGroup:AddButton({
+    Text = "r15鹿管脚本",
+    Func = function() 
+        Library:Notify("正在加载r15鹿管脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))() end)
+        Library:Notify("r15鹿管脚本已加载！", 3)
+    end,
+})
+OtherGroup:AddToggle('HeadlessToggle', {
+    Text = "无头脚本开关",
+    Default = false,
+    Callback = function(state)
+        if state then
+            Library:Notify("正在加载无头脚本...", 2)
+            pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Headless-anh-idk-238257"))() end)
+            Library:Notify("无头脚本已加载！", 3)
+        else
+            Library:Notify("无头脚本已关闭！", 3)
+        end
     end
-end})
+})
+OtherGroup:AddToggle('KorbloxToggle', {
+    Text = "Korblox开关",
+    Default = false,
+    Callback = function(state)
+        if state then
+            Library:Notify("正在加载Korblox...", 2)
+            pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Korblox-238258"))() end)
+            Library:Notify("Korblox已加载！", 3)
+        else
+            Library:Notify("Korblox已关闭！", 3)
+        end
+    end
+})
 
-FlingSection:Button({Title = "刷新列表", Callback = function()
-    flingDropdown:Refresh(getPlayerList())
-end})
+-- ==========================================================
+-- 通用标签页 - 视觉效果
+-- ==========================================================
+local VisualGroup = Tabs.General:AddRightGroupbox("视觉效果")
+VisualGroup:AddToggle('SpinToggle', {
+    Text = "旋转",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enSpin() 
+            Library:Notify("旋转已开启！", 3)
+        else 
+            disSpin() 
+            Library:Notify("旋转已关闭！", 3)
+        end 
+    end,
+})
+VisualGroup:AddSlider('SpinSpeedSlider', {
+    Text = "旋转速度",
+    Default = 10,
+    Min = 1,
+    Max = 50,
+    Rounding = 0,
+    Callback = function(v) setSpinSpeed(v) end,
+})
+VisualGroup:AddToggle('NightVisionToggle', {
+    Text = "夜视",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enNV() 
+            Library:Notify("夜视已开启！", 3)
+        else 
+            disNV() 
+            Library:Notify("夜视已关闭！", 3)
+        end 
+    end,
+})
+VisualGroup:AddToggle('PlayerJoinToggle', {
+    Text = "玩家进入通知",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enPJN() 
+            Library:Notify("玩家进入通知已开启！", 3)
+        else 
+            disPJN() 
+            Library:Notify("玩家进入通知已关闭！", 3)
+        end 
+    end,
+})
+VisualGroup:AddSlider('GravitySlider', {
+    Text = "重力设置",
+    Default = gravityValue,
+    Min = 0,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(v) setGravity(v) end,
+})
+VisualGroup:AddButton({
+    Text = "让其他玩家变成noob",
+    Func = function() 
+        Library:Notify("正在加载变noob脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Natural-Disaster-Survival-noob-all-110242"))() end)
+        Library:Notify("变noob脚本已加载！", 3)
+    end,
+})
 
-local TrackingTab = Window:Tab({Title = "追踪类", Icon = "crosshair"})
-local TrackingSection = TrackingTab:Section({Title = "玩家追踪"})
-local trackDropdown = TrackingSection:Dropdown({Title = "追踪玩家", Values = getPlayerList(), Value = "", Callback = function(v) if v ~= "" then startTrack(v) end end})
-TrackingSection:Button({Title = "停止追踪", Callback = function() stopTrack() end})
-TrackingSection:Button({Title = "刷新列表", Callback = function() trackDropdown:Refresh(getPlayerList()) end})
+-- ==========================================================
+-- 通用标签页 - 自瞄功能
+-- ==========================================================
+local CombatGroup = Tabs.General:AddLeftGroupbox("自瞄功能")
+CombatGroup:AddSlider('AimRangeSlider', {
+    Text = "自瞄范围",
+    Default = 500,
+    Min = 100,
+    Max = 1000,
+    Rounding = 0,
+    Callback = function(v) aimRange = v end,
+})
+CombatGroup:AddToggle('AimbotToggle', {
+    Text = "自瞄",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enAimbot() 
+            Library:Notify("自瞄已开启！", 3)
+        else 
+            disAimbot() 
+            Library:Notify("自瞄已关闭！", 3)
+        end 
+    end,
+})
+
+-- ==========================================================
+-- 通用标签页 - 系统功能
+-- ==========================================================
+local SystemGroup = Tabs.General:AddRightGroupbox("系统功能")
+SystemGroup:AddToggle('AntiAFKToggle', {
+    Text = "反挂机",
+    Default = false,
+    Callback = function(s) 
+        if s then 
+            enAFK() 
+            Library:Notify("反挂机已开启！", 3)
+        else 
+            disAFK() 
+            Library:Notify("反挂机已关闭！", 3)
+        end 
+    end,
+})
+SystemGroup:AddButton({
+    Text = "重新加入",
+    Func = function() 
+        Library:Notify("正在重新加入...", 2)
+        rejoin() 
+    end,
+})
+SystemGroup:AddButton({
+    Text = "离开游戏",
+    Func = function() 
+        Library:Notify("正在离开游戏...", 2)
+        leave() 
+    end,
+})
+SystemGroup:AddButton({
+    Text = "关闭脚本",
+    Func = function() 
+        Library:Notify("脚本已关闭！", 2)
+        closeScript() 
+    end,
+})
+
+-- ==========================================================
+-- 甩飞标签页
+-- ==========================================================
+local FlingGroup = Tabs.Fling:AddLeftGroupbox("玩家甩飞")
+local flingDropdown = FlingGroup:AddDropdown('FlingPlayerDropdown', {
+    Values = getPlayerList(),
+    Default = 1,
+    Multi = false,
+    Text = "选择玩家",
+    Callback = function(v) end,
+})
+FlingGroup:AddButton({
+    Text = "甩飞一次",
+    Func = function()
+        local selectedValue = flingDropdown.Value
+        newFlingPlayer(selectedValue)
+        Library:Notify("甩飞完成！", 3)
+    end,
+})
+FlingGroup:AddToggle('AutoFlingToggle', {
+    Text = "循环甩飞",
+    Default = false,
+    Callback = function(state)
+        autoFlingEnabled = state
+        if state then
+            Library:Notify("循环甩飞已开启！", 3)
+            spawn(function()
+                while autoFlingEnabled do
+                    local selectedValue = flingDropdown.Value
+                    if selectedValue and selectedValue ~= "" and selectedValue ~= "无其他玩家" then
+                        pcall(function() newFlingPlayer(selectedValue) end)
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        else
+            Library:Notify("循环甩飞已关闭！", 3)
+        end
+    end,
+})
+FlingGroup:AddButton({
+    Text = "刷新列表",
+    Func = function()
+        flingDropdown:Refresh(getPlayerList())
+        Library:Notify("列表已刷新！", 2)
+    end,
+})
+
+-- ==========================================================
+-- 追踪标签页
+-- ==========================================================
+local TrackingGroup = Tabs.Tracking:AddLeftGroupbox("玩家追踪")
+local trackDropdown = TrackingGroup:AddDropdown('TrackPlayerDropdown', {
+    Values = getPlayerList(),
+    Default = 1,
+    Multi = false,
+    Text = "追踪玩家",
+    Callback = function(v) 
+        if v ~= "" then 
+            startTrack(v) 
+            Library:Notify("正在追踪 " .. v, 3)
+        end 
+    end,
+})
+TrackingGroup:AddButton({
+    Text = "停止追踪",
+    Func = function() 
+        stopTrack() 
+        Library:Notify("追踪已停止！", 3)
+    end,
+})
+TrackingGroup:AddButton({
+    Text = "刷新列表",
+    Func = function() 
+        trackDropdown:Refresh(getPlayerList()) 
+        Library:Notify("列表已刷新！", 2)
+    end,
+})
 local circling = false
-TrackingSection:Toggle({Title = "转圈", Value = false, Callback = function(s) circling = s; if s then spawn(function() local a = 0; while circling and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do a = a + 0.1; player.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame * CFrame.Angles(0,0.1,0) + Vector3.new(math.cos(a)*0.5,0,math.sin(a)*0.5); wait() end end) end end})
+TrackingGroup:AddToggle('CircleToggle', {
+    Text = "转圈",
+    Default = false,
+    Callback = function(s)
+        circling = s
+        if s then
+            Library:Notify("转圈已开启！", 3)
+            spawn(function()
+                local a = 0
+                while circling and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do
+                    a = a + 0.1
+                    player.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame * CFrame.Angles(0, 0.1, 0) + Vector3.new(math.cos(a) * 0.5, 0, math.sin(a) * 0.5)
+                    wait()
+                end
+            end)
+        else
+            Library:Notify("转圈已关闭！", 3)
+        end
+    end,
+})
 
-local InjectorTab = Window:Tab({Title = "注入器", Icon = "download"})
-local InjectorSection = InjectorTab:Section({Title = "注入器下载"})
-InjectorSection:Button({Title = "阿尔宙斯注入器3.0", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))() end})
+-- ==========================================================
+-- 注入器标签页
+-- ==========================================================
+local InjectorGroup = Tabs.Injector:AddLeftGroupbox("注入器下载")
+InjectorGroup:AddButton({
+    Text = "阿尔宙斯注入器3.0",
+    Func = function() 
+        Library:Notify("正在加载阿尔宙斯注入器...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/AZYsGithub/chillz-workshop/main/Arceus%20X%20V3"))() end)
+        Library:Notify("阿尔宙斯注入器已加载！", 3)
+    end,
+})
 
-local OtherTab = Window:Tab({Title = "其他脚本", Icon = "code"})
-local OtherScriptSection = OtherTab:Section({Title = "通用脚本"})
-OtherScriptSection:Button({Title = "皮脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))() end})
-OtherScriptSection:Button({Title = "tsb脚本", Callback = function() local k = "YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"; pcall(function() setclipboard(k) end); loadstring(game:HttpGet("https://raw.githubusercontent.com/DiosDi/VexonHub/refs/heads/main/VexonHub"))() end})
-OtherScriptSection:Button({Title = "叶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))() end})
-OtherScriptSection:Button({Title = "动作脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))() end})
-OtherScriptSection:Button({Title = "ROB", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))() end})
-OtherScriptSection:Button({Title = "XK", Callback = function() loadstring(game:HttpGet(('https://github.com/devslopo/DVES/raw/main/XK%20Hub')))() end})
-OtherScriptSection:Button({Title = "情云脚本中心", Callback = function() loadstring(utf8.char((function() return table.unpack({108,111,97,100,115,116,114,105,110,103,40,103,97,109,101,58,72,116,116,112,71,101,116,40,34,104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,117,98,117,115,101,114,99,111,110,116,101,110,116,46,99,111,109,47,67,104,105,110,97,81,89,47,45,47,109,97,105,110,47,37,69,54,37,56,51,37,56,53,37,69,52,37,66,65,37,57,49,34,41,41,40,41})end)()))() end})
-OtherScriptSection:Button({Title = "祖国人", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))() end) end})
-OtherScriptSection:Button({Title = "天下布武", Callback = function() pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end) end})
+-- ==========================================================
+-- 其他脚本标签页 - 通用脚本
+-- ==========================================================
+local OtherScriptGroup = Tabs.OtherScript:AddLeftGroupbox("通用脚本")
+OtherScriptGroup:AddButton({
+    Text = "皮脚本",
+    Func = function() 
+        Library:Notify("正在加载皮脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))() end)
+        Library:Notify("皮脚本已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "tsb脚本",
+    Func = function() 
+        Library:Notify("正在加载tsb脚本...", 2)
+        local k = "YPVdAosoAvaXrtZAdEYxCQRBEwbphCXq"
+        pcall(function() setclipboard(k) end)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/DiosDi/VexonHub/refs/heads/main/VexonHub"))() end)
+        Library:Notify("tsb脚本已加载！密钥已复制", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "叶脚本",
+    Func = function() 
+        Library:Notify("正在加载叶脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))() end)
+        Library:Notify("叶脚本已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "动作脚本",
+    Func = function() 
+        Library:Notify("正在加载动作脚本...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs/heads/Branch/GUIS/Emotes.lua"))() end)
+        Library:Notify("动作脚本已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "ROB",
+    Func = function() 
+        Library:Notify("正在加载ROB...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyb150933/ROB/refs/heads/main/ROB.V2"))() end)
+        Library:Notify("ROB已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "XK",
+    Func = function() 
+        Library:Notify("正在加载XK...", 2)
+        pcall(function() loadstring(game:HttpGet('https://github.com/devslopo/DVES/raw/main/XK%20Hub'))() end)
+        Library:Notify("XK已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "情云脚本中心",
+    Func = function() 
+        Library:Notify("正在加载情云脚本中心...", 2)
+        pcall(function() loadstring(utf8.char((function() return table.unpack({108,111,97,100,115,116,114,105,110,103,40,103,97,109,101,58,72,116,116,112,71,101,116,40,34,104,116,116,112,115,58,47,47,114,97,119,46,103,105,116,104,117,98,117,115,101,114,99,111,110,116,101,110,116,46,99,111,109,47,67,104,105,110,97,81,89,47,45,47,109,97,105,110,47,37,69,54,37,56,51,37,56,53,37,69,52,37,66,65,37,57,49,34,41,41,40,41})end)()))() end)
+        Library:Notify("情云脚本中心已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "祖国人",
+    Func = function() 
+        Library:Notify("正在加载祖国人...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/kongbaNB/-/refs/heads/main/%E7%A5%96%E5%9B%BD%E4%BA%BA%E6%B1%89%E5%8C%96"))() end)
+        Library:Notify("祖国人已加载！", 3)
+    end,
+})
+OtherScriptGroup:AddButton({
+    Text = "天下布武",
+    Func = function() 
+        Library:Notify("正在加载天下布武...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/cytj777i/Deliver-through-the-wall-perspective/main/%E5%A4%A9%E4%B8%8B%E5%B8%83%E6%AD%A6"))() end)
+        Library:Notify("天下布武已加载！", 3)
+    end,
+})
 
-local BSSection = OtherTab:Section({Title = "最强战场脚本"})
-BSSection:Button({Title = "最强战场远程打人", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SIONELTNAMATLASIA.lua"))() end})
-BSSection:Button({Title = "最强战场垃圾桶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/yes1nt/yes/refs/heads/main/Trashcan%20Man",true))() end})
+-- ==========================================================
+-- 其他脚本标签页 - 最强战场脚本
+-- ==========================================================
+local BSGroup = Tabs.OtherScript:AddRightGroupbox("最强战场脚本")
+BSGroup:AddButton({
+    Text = "最强战场远程打人",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SIONELTNAMATLASIA.lua"))() end)
+        Library:Notify("最强战场远程打人已加载！", 3)
+    end,
+})
+BSGroup:AddButton({
+    Text = "最强战场垃圾桶脚本",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/yes1nt/yes/refs/heads/main/Trashcan%20Man", true))() end)
+        Library:Notify("垃圾桶脚本已加载！", 3)
+    end,
+})
 
-local OtherScriptSection2 = OtherTab:Section({Title = "其他"})
-OtherScriptSection2:Button({Title = "黑白脚本", Callback = function() loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8'))() end})
-OtherScriptSection2:Button({Title = "BS脚本", Callback = function() local BS = "\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97\117" loadstring(game:HttpGet(BS))() end})
+-- ==========================================================
+-- 其他脚本标签页 - 其他
+-- ==========================================================
+local OtherGroup2 = Tabs.OtherScript:AddLeftGroupbox("其他")
+OtherGroup2:AddButton({
+    Text = "黑白脚本",
+    Func = function() 
+        Library:Notify("正在加载黑白脚本...", 2)
+        pcall(function() loadstring(game:HttpGet('https://raw.githubusercontent.com/tfcygvunbind/Apple/main/%E9%BB%91%E7%99%BD%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8'))() end)
+        Library:Notify("黑白脚本已加载！", 3)
+    end,
+})
+OtherGroup2:AddButton({
+    Text = "BS脚本",
+    Func = function() 
+        Library:Notify("正在加载BS脚本...", 2)
+        pcall(function()
+            local BS = "\104\116\116\112\115\58\47\47\103\105\116\101\101\46\99\111\109\47\66\83\95\115\99\114\105\112\116\47\115\99\114\105\112\116\47\114\97\119\47\109\97\115\116\101\114\47\66\83\95\83\99\114\105\112\116\46\76\117\97\117"
+            loadstring(game:HttpGet(BS))()
+        end)
+        Library:Notify("BS脚本已加载！", 3)
+    end,
+})
 
-local ServerTab = Window:Tab({Title = "脚本服务器", Icon = "server"})
-local ServerSection = ServerTab:Section({Title = "服务器脚本"})
-ServerSection:Button({Title = "内脏与黑火药", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/2/refs/heads/main/%E9%98%89%E5%89%B2%E7%89%88.lua"))() end})
-ServerSection:Button({Title = "TSB脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))() end})
-ServerSection:Button({Title = "监狱人生脚本", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))() end})
-ServerSection:Button({Title = "破坏者谜团2脚本", Callback = function() loadstring(game:HttpGet(("https://raw.githubusercontent.com/Ethanoj1/EclipseMM2/master/Script"),true))() end})
-ServerSection:Button({Title = "99夜脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/atnew2025/Chinese-scripts/refs/heads/main/voidware-cn.txt"))() end})
-ServerSection:Button({Title = "doors", Callback = function() loadstring(game:HttpGet("\104\116\116\112\115\58\47\47\112\97\115\116\101\98\105\110\46\99\111\109\47\114\97\119\47\54\53\84\119\84\56\106\97"))() end})
-ServerSection:Button({Title = "自然灾害", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/5fKvum70"))() end})
-ServerSection:Button({Title = "LC", Callback = function() loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))() end})
-ServerSection:Button({Title = "墨水游戏", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/sR98CDWm"))() end})
-ServerSection:Button({Title = "俄亥俄州", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XingFork/Scripts/refs/heads/main/Ohio"))() end})
-ServerSection:Button({Title = "被遗弃", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/FengYu-X/Max/refs/heads/X/fsk.lua"))() end})
+-- ==========================================================
+-- 脚本服务器标签页
+-- ==========================================================
+local ServerGroup = Tabs.Server:AddLeftGroupbox("服务器脚本")
+ServerGroup:AddButton({
+    Text = "内脏与黑火药",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/wzhxll/2/refs/heads/main/%E9%98%89%E5%89%B2%E7%89%88.lua"))() end)
+        Library:Notify("内脏与黑火药已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "TSB脚本",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ke9460394-dot/ugik/refs/heads/main/phantasm.lua"))() end)
+        Library:Notify("TSB脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "监狱人生脚本",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Prison-Life-Zolt-Invisible-Fly-Auto-Arrest-And-More-OP-Script-228808"))() end)
+        Library:Notify("监狱人生脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "破坏者谜团2脚本",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Ethanoj1/EclipseMM2/master/Script", true))() end)
+        Library:Notify("破坏者谜团2脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "99夜脚本",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/atnew2025/Chinese-scripts/refs/heads/main/voidware-cn.txt"))() end)
+        Library:Notify("99夜脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "doors",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("\104\116\116\112\115\58\47\47\112\97\115\116\101\98\105\110\46\99\111\109\47\114\97\119\47\54\53\84\119\84\56\106\97"))() end)
+        Library:Notify("doors脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "自然灾害",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/5fKvum70"))() end)
+        Library:Notify("自然灾害脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "LC",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://rawscripts.net/raw/Lexington-and-Concord-LC-75016"))() end)
+        Library:Notify("LC脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "墨水游戏",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/sR98CDWm"))() end)
+        Library:Notify("墨水游戏脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "俄亥俄州",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/XingFork/Scripts/refs/heads/main/Ohio"))() end)
+        Library:Notify("俄亥俄州脚本已加载！", 3)
+    end,
+})
+ServerGroup:AddButton({
+    Text = "被遗弃",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/FengYu-X/Max/refs/heads/X/fsk.lua"))() end)
+        Library:Notify("被遗弃脚本已加载！", 3)
+    end,
+})
 
-local FETab = Window:Tab({Title = "FE脚本", Icon = "flame"})
-local FESection = FETab:Section({Title = "FE功能脚本"})
-FESection:Button({Title = "coolgui", Callback = function() loadstring(game:GetObjects("rbxassetid://8127297852")[1].Source)() end})
-FESection:Button({Title = "1x1x1x1", Callback = function() loadstring(game:HttpGet(('https://pastebin.com/raw/JipYNCht'),true))() end})
-FESection:Button({Title = "变玩家（R6）", Callback = function() loadstring(game:HttpGet("https://pastebin.com/raw/XR4sGcgJ"))() end})
-FESection:Button({Title = "动画中心", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/GamingScripter/Animation-Hub/main/Animation%20Gui",true))() end})
+-- ==========================================================
+-- FE脚本标签页
+-- ==========================================================
+local FEGroup = Tabs.FE:AddLeftGroupbox("FE功能脚本")
+FEGroup:AddButton({
+    Text = "coolgui",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:GetObjects("rbxassetid://8127297852")[1].Source)() end)
+        Library:Notify("coolgui已加载！", 3)
+    end,
+})
+FEGroup:AddButton({
+    Text = "1x1x1x1",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet('https://pastebin.com/raw/JipYNCht', true))() end)
+        Library:Notify("1x1x1x1已加载！", 3)
+    end,
+})
+FEGroup:AddButton({
+    Text = "变玩家（R6）",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/XR4sGcgJ"))() end)
+        Library:Notify("变玩家脚本已加载！", 3)
+    end,
+})
+FEGroup:AddButton({
+    Text = "动画中心",
+    Func = function() 
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/GamingScripter/Animation-Hub/main/Animation%20Gui", true))() end)
+        Library:Notify("动画中心已加载！", 3)
+    end,
+})
 
-local MusicTab = Window:Tab({Title = "音乐", Icon = "music"})
-local MusicSection = MusicTab:Section({Title = "音乐播放"})
-local musicInput = MusicSection:Input({Title = "音乐代码", Value = "", Placeholder = "输入音乐ID", Callback = function(t) end})
+-- ==========================================================
+-- 音乐标签页
+-- ==========================================================
+local MusicGroup = Tabs.Music:AddLeftGroupbox("音乐播放")
+local musicInput = MusicGroup:AddInput('MusicInput', {
+    Default = "",
+    Numeric = true,
+    Finished = true,
+    Text = "音乐代码",
+    Placeholder = "输入音乐ID",
+    Callback = function(t) end,
+})
 
-local AIServerTab = Window:Tab({Title = "我做的服务器脚本（但ai）", Icon ="bot"})
-local AISection = AIServerTab:Section({Title = "AI脚本合集"})
-AISection:Button({Title = "击打战斗脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-6/refs/heads/main/%E5%87%BB%E6%89%93%E6%88%98%E6%96%97%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
-end})
-AISection:Button({Title = "最强战场脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-1-/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))()
-end})
-AISection:Button({Title = "击退战斗", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-5/refs/heads/main/%E5%87%BB%E9%80%80%E6%88%98%E6%96%97.lua"))()
-end})
-AISection:Button({Title = "自然灾害模拟器", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/ZiranZaihaiMoniliqi2/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E6%A8%A1%E6%8B%9F%E5%99%A8.lua"))()
-end})
+-- ==========================================================
+-- AI脚本标签页
+-- ==========================================================
+local AIGroup = Tabs.AIServer:AddLeftGroupbox("AI脚本合集")
+AIGroup:AddButton({
+    Text = "击打战斗脚本",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-6/refs/heads/main/%E5%87%BB%E6%89%93%E6%88%98%E6%96%97%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))() end)
+        Library:Notify("击打战斗脚本已加载！", 3)
+    end,
+})
+AIGroup:AddButton({
+    Text = "最强战场脚本",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-1-/refs/heads/main/%E6%9C%80%E5%BC%BA%E6%88%98%E5%9C%BA%E8%84%9A%E6%9C%AC%E5%8A%A0%E8%BD%BD%E5%99%A8"))() end)
+        Library:Notify("最强战场脚本已加载！", 3)
+    end,
+})
+AIGroup:AddButton({
+    Text = "击退战斗",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/-5/refs/heads/main/%E5%87%BB%E9%80%80%E6%88%98%E6%96%97.lua"))() end)
+        Library:Notify("击退战斗已加载！", 3)
+    end,
+})
+AIGroup:AddButton({
+    Text = "自然灾害模拟器",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/ZiranZaihaiMoniliqi2/refs/heads/main/%E8%87%AA%E7%84%B6%E7%81%BE%E5%AE%B3%E6%A8%A1%E6%8B%9F%E5%99%A8.lua"))() end)
+        Library:Notify("自然灾害模拟器已加载！", 3)
+    end,
+})
+AIGroup:AddButton({
+    Text = "极速传奇",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        loadstring(game:HttpGet("https://github.com/pl11451481mvcxz/114514/raw/refs/heads/main/极速传奇.lua"))() end)
+        Library:Notify("极速传奇已加载！", 3)
+    end,
+})
 
-local AIOtherSection = AIServerTab:Section({Title = "其他AI脚本"})
-AIOtherSection:Button({Title = "HFH916汉化", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/HitboxExpander/refs/heads/main/Release"))()
-end})
-AIOtherSection:Button({Title = "TSB加密脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/MIAN57/-/refs/heads/main/TSB%E5%8A%A0%E5%AF%86.lua"))()
-end})
-AIOtherSection:Button({Title = "监狱人生脚本", Callback = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/jianyurensheng/refs/heads/main/Script.lua"))()
-end})
+local AIOtherGroup = Tabs.AIServer:AddRightGroupbox("其他AI脚本")
+AIOtherGroup:AddButton({
+    Text = "HFH916汉化",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/Cyborg883/HitboxExpander/refs/heads/main/Release"))() end)
+        Library:Notify("HFH916汉化已加载！", 3)
+    end,
+})
+AIOtherGroup:AddButton({
+    Text = "TSB加密脚本",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/MIAN57/-/refs/heads/main/TSB%E5%8A%A0%E5%AF%86.lua"))() end)
+        Library:Notify("TSB加密脚本已加载！", 3)
+    end,
+})
+AIOtherGroup:AddButton({
+    Text = "监狱人生脚本",
+    Func = function()
+        Library:Notify("正在加载...", 2)
+        pcall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/pl11451481mvcxz/jianyurensheng/refs/heads/main/Script.lua"))() end)
+        Library:Notify("监狱人生脚本已加载！", 3)
+    end,
+})
+
+-- ==========================================================
+-- 设置标签页
+-- ==========================================================
+local SettingsGroup = Tabs.Settings:AddLeftGroupbox("菜单")
+SettingsGroup:AddButton({
+    Text = "卸载脚本",
+    Func = function() 
+        Library:Notify("脚本已卸载！", 2)
+        Library:Unload() 
+    end,
+})
+SettingsGroup:AddLabel("菜单快捷键"):AddKeyPicker('MenuKeybind', {
+    Default = 'RightShift',
+    NoUI = true,
+    Text = 'Menu keybind',
+})
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+ThemeManager:SetFolder("MyScriptTheme")
+SaveManager:SetFolder("MyScriptConfig")
+SaveManager:BuildConfigSection(Tabs.Settings)
