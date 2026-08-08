@@ -498,8 +498,7 @@ local Tabs = {
     Fling = Window:AddTab("甩飞", "zap"),
     Tracking = Window:AddTab("追踪类", "crosshair"),
     Injector = Window:AddTab("注入器", "download"),
-    OtherScript = Window:AddTab("其他脚本", "code")
-    Server = Window:AddTab("脚本服务器", "server"),
+    OtherScript = Window:AddTab("其他脚本", "code"),Server = Window:AddTab("脚本服务器", "server"),
     FE = Window:AddTab("FE脚本", "flame"),
     Music = Window:AddTab("音乐", "music"),
     AIServer = Window:AddTab("AI脚本", "bot"),
@@ -1351,14 +1350,6 @@ AIGroup:AddButton({
         Library:Notify("自然灾害模拟器已加载！", 3)
     end,
 })
-AIGroup:AddButton({
-    Text = "极速传奇",
-    Func = function()
-        Library:Notify("正在加载...", 2)
-        loadstring(game:HttpGet("https://github.com/pl11451481mvcxz/114514/raw/refs/heads/main/极速传奇.lua"))() end)
-        Library:Notify("极速传奇已加载！", 3)
-    end,
-})
 
 local AIOtherGroup = Tabs.AIServer:AddRightGroupbox("其他AI脚本")
 AIOtherGroup:AddButton({
@@ -1411,3 +1402,4 @@ SaveManager:IgnoreThemeSettings()
 ThemeManager:SetFolder("MyScriptTheme")
 SaveManager:SetFolder("MyScriptConfig")
 SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
